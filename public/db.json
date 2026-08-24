@@ -1,0 +1,33 @@
+{
+  "profile": {
+    "name": "Xushnudbek",
+    "role": "Frontend Developer",
+    "location": "Tashkent, Uzbekistan",
+    "bio": "Men raqamli g'oyalarni sodda, foydali va chiroyli tajribalarga aylantiraman.",
+    "about": "Dasturlashni o'rganish yo'lidagi har bir qadamim yangi imkoniyatlar sari olib boradi. Hozir frontend ekotizimi, AI va mahsulot dizayniga alohida qiziqaman.",
+    "email": "hello@xushnudbek.dev",
+    "telegram": "https://t.me/",
+    "instagram": "https://instagram.com/",
+    "youtube": "https://youtube.com/"
+  },
+  "stats": { "visits": 1248, "likes": 86, "dislikes": 9 },
+  "interests": [
+    { "id": 1, "icon": "</>", "title": "Dasturlash", "text": "Har kuni yangi texnologiya va yechimlarni sinab ko'raman.", "color": "lime" },
+    { "id": 2, "icon": "AI", "title": "Sun'iy intellekt", "text": "AI kelajagini o'rganish va uni foydali mahsulotlarda qo'llash.", "color": "blue" },
+    { "id": 3, "icon": "✦", "title": "Sport", "text": "Faol hayot tarzi energiya va yaxshi fikrlar beradi.", "color": "orange" },
+    { "id": 4, "icon": "◈", "title": "Texnologiya", "text": "Yangi g'oyalar, qurilmalar va raqamli mahsulotlar.", "color": "pink" }
+  ],
+  "achievements": [
+    { "id": 1, "date": "2023", "title": "Dasturlash bilan tanishuv", "text": "Frontend olamiga ilk qadamlarimni qo'ydim." },
+    { "id": 2, "date": "2024", "title": "HTML va CSS", "text": "Birinchi sahifalarimni yaratib, interfeys asoslarini o'rgandim." },
+    { "id": 3, "date": "2024", "title": "JavaScript & React", "text": "Interaktiv web-ilovalar yaratishni boshladim." },
+    { "id": 4, "date": "2025", "title": "Birinchi loyihalar", "text": "Real loyihalar orqali tajribamni mustahkamladim." }
+  ],
+  "friends": [
+    { "id": 1, "name": "Azizbek Karimov", "age": 20, "role": "Frontend Developer", "bio": "Kod va kreativ g'oyalar tarafdori.", "avatar": "AK" },
+    { "id": 2, "name": "Madina Tursunova", "age": 19, "role": "UI/UX Designer", "bio": "Odamlar uchun qulay interfeyslar yaratadi.", "avatar": "MT" },
+    { "id": 3, "name": "Sardor Abdullayev", "age": 21, "role": "Backend Developer", "bio": "Tizimlar ichidagi murakkabliklarni soddalashtiradi.", "avatar": "SA" }
+  ],
+  "acquaintances": [],
+  "messages": []
+}
