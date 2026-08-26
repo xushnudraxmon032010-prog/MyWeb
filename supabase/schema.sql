@@ -13,6 +13,10 @@ create table if not exists public.acquaintances (
   age integer default 0, phone text not null, status text not null default 'pending' check (status in ('pending', 'approved'))
 );
 
+insert into public.friends (name, relation, note)
+select 'Hojakbar', 'Do’st', 'Mening yaqin do‘stim.'
+where not exists (select 1 from public.friends where name = 'Hojakbar');
+
 do $$
 begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'acquaintances' and column_name = 'firstname') then
