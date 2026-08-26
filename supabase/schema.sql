@@ -27,9 +27,16 @@ alter table public.profile enable row level security;
 alter table public.friends enable row level security;
 alter table public.acquaintances enable row level security;
 
-create policy "Public can read profile" on public.profile for select using (true);
-create policy "Public can read friends" on public.friends for select using (true);
-create policy "Public can submit requests" on public.acquaintances for insert with check (status = 'pending');
-create policy "Public can read approved" on public.acquaintances for select using (status = 'approved');
+drop policy if exists "Public can read profile" on public.profile;
+drop policy if exists "Public can read friends" on public.friends;
+drop policy if exists "Public can submit requests" on public.acquaintances;
+drop policy if exists "Public can read approved" on public.acquaintances;
+drop policy if exists "Authenticated can manage friends" on public.friends;
+drop policy if exists "Authenticated can manage acquaintances" on public.acquaintances;
+
+create policy "Public can read profile" on public.profile for select to anon, authenticated using (true);
+create policy "Public can read friends" on public.friends for select to anon, authenticated using (true);
+create policy "Public can submit requests" on public.acquaintances for insert to anon, authenticated with check (status = 'pending');
+create policy "Public can read approved" on public.acquaintances for select to anon, authenticated using (status = 'approved');
 create policy "Authenticated can manage friends" on public.friends for all to authenticated using (true) with check (true);
 create policy "Authenticated can manage acquaintances" on public.acquaintances for all to authenticated using (true) with check (true);
