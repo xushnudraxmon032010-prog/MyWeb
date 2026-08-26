@@ -581,6 +581,110 @@ textarea {
   z-index: 30;
 }
 
+.feedback-trigger {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--forest-dark);
+  border-radius: 999px;
+  padding: 13px 18px 13px 14px;
+  background: var(--forest);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 12px 26px rgba(6, 67, 50, 0.24);
+  z-index: 29;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.feedback-trigger:hover {
+  transform: translateY(-3px);
+  background: var(--leaf);
+  box-shadow: 0 16px 30px rgba(6, 67, 50, 0.3);
+}
+
+.feedback-trigger:active {
+  transform: translateY(-1px);
+}
+
+.feedback-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--forest-dark);
+  font-size: 1rem;
+}
+
+.review-modal {
+  position: relative;
+  width: min(100%, 440px);
+  background: var(--paper);
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  padding: 28px 26px 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.15);
+}
+
+.review-modal h2 {
+  margin: 10px 0 18px;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  letter-spacing: -0.06em;
+}
+
+.rating-input {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 20px;
+}
+
+.rating-input button {
+  border: none;
+  background: transparent;
+  color: var(--line);
+  font-size: 2rem;
+  line-height: 1;
+  padding: 2px;
+}
+
+.rating-input button.selected,
+.rating-input button:hover {
+  color: var(--gold-dark);
+}
+
+.review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.review-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.review-card p {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.review-card small {
+  color: var(--muted);
+}
+
+.review-stars {
+  color: var(--gold-dark);
+  letter-spacing: 0.08em;
+}
+
 .popup p {
   margin: 0;
   font-weight: 600;

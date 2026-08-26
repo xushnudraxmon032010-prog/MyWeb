@@ -10,7 +10,10 @@ import {
   getFriends,
   getPendingAcquaintances,
   getProfile,
+  getReviews,
   loginAdmin,
+  createReview,
+  deleteReview,
   updateAcquaintance as updateSupabaseAcquaintance,
   updateFriend as updateSupabaseFriend,
   logoutAdmin,
@@ -75,6 +78,9 @@ function App() {
   const [loginError, setLoginError] = useState('');
   const [acquaintanceError, setAcquaintanceError] = useState('');
   const [showAlert, setShowAlert] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [reviewForm, setReviewForm] = useState({ name: '', rating: 0, comment: '' });
+  const [reviewError, setReviewError] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editingFriendId, setEditingFriendId] = useState(null);
@@ -89,11 +95,12 @@ function App() {
 
   const loadAppData = async () => {
     try {
-      const [profileData, friendsData, pendingData, approvedData] = await Promise.all([
+      const [profileData, friendsData, pendingData, approvedData, reviewsData] = await Promise.all([
         getProfile(),
         getFriends(),
         isAdminLoggedIn ? getPendingAcquaintances() : Promise.resolve([]),
         getApprovedAcquaintances(),
+        isAdminLoggedIn ? getReviews() : Promise.resolve([]),
       ]);
 
       const allAcquaintances = [...(Array.isArray(pendingData) ? pendingData : []), ...(Array.isArray(approvedData) ? approvedData : [])];
@@ -101,11 +108,13 @@ function App() {
       setProfile(profileData || initialProfile);
       setFriends(Array.isArray(friendsData) ? friendsData : []);
       setAcquaintances(allAcquaintances);
+      setReviews(Array.isArray(reviewsData) ? reviewsData : []);
     } catch (error) {
       console.error('Failed to load app data:', error);
       setProfile(initialProfile);
       setFriends([]);
       setAcquaintances([]);
+      setReviews([]);
     }
   };
 
@@ -116,15 +125,6 @@ function App() {
   useEffect(() => {
     void loadAppData();
   }, [isAdminLoggedIn]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowAlert(true);
-      alert('Mening websitem sizga yoqdimi?');
-    }, 10000);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     if (!isSidebarOpen) return undefined;
@@ -175,6 +175,42 @@ function App() {
       setLoginData({ username: '', password: '' });
     } catch (error) {
       setLoginError(error.message || 'Login yoki parol noto‘g‘ri.');
+    }
+  };
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    setReviewError('');
+
+    if (!reviewForm.rating || !reviewForm.comment.trim()) {
+      setReviewError('Yulduzli baho va izoh qoldiring.');
+      return;
+    }
+
+    try {
+      if (!reviewForm.name.trim()) {
+        setReviewError('Ismingizni kiriting.');
+        return;
+      }
+
+      await createReview({
+        name: reviewForm.name.trim(),
+        rating: reviewForm.rating,
+        comment: reviewForm.comment.trim(),
+      });
+      setReviewForm({ name: '', rating: 0, comment: '' });
+      setShowAlert(false);
+    } catch (error) {
+      setReviewError(error.message || 'Izohni yuborib bo‘lmadi.');
+    }
+  };
+
+  const removeReview = async (id) => {
+    try {
+      await deleteReview(id);
+      setReviews((prev) => prev.filter((review) => review.id !== id));
+    } catch (error) {
+      console.error('Review delete failed:', error);
     }
   };
 
@@ -712,6 +748,29 @@ function App() {
           </div>
 
           <section className="admin-card approved-card">
+            <h3>Baholar va izohlar</h3>
+            {reviews.length === 0 ? (
+              <p className="empty-message">Hozircha izohlar yo‘q.</p>
+            ) : (
+              <div className="review-list">
+                {reviews.map((review) => (
+                  <article key={review.id} className="review-card">
+                    <div>
+                      <strong>{review.name || 'Noma’lum'}</strong>
+                      <div className="review-stars" aria-label={`${review.rating} yulduz`}>{'★'.repeat(review.rating)}</div>
+                      <p>{review.comment}</p>
+                      <small>{new Date(review.created_at).toLocaleString('uz-UZ')}</small>
+                    </div>
+                    <button type="button" className="danger-btn" onClick={() => removeReview(review.id)}>
+                      Delete
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="admin-card approved-card">
             <h3>Approved tanishlar</h3>
             <div className="card-grid admin-card-grid">
               {approvedAcquaintances.length === 0 ? (
@@ -850,12 +909,60 @@ function App() {
         </main>
       )}
 
+      <button type="button" className="feedback-trigger" onClick={() => setShowAlert(true)}>
+        <span className="feedback-icon" aria-hidden="true">★</span>
+        <span>MyWeb ni baholang</span>
+      </button>
+
       {showAlert && (
-        <div className="popup">
-          <button type="button" className="close-btn" onClick={() => setShowAlert(false)}>
+        <div className="login-backdrop" onClick={() => setShowAlert(false)}>
+          <form className="review-modal" onSubmit={handleReviewSubmit} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="close-btn login-close" onClick={() => setShowAlert(false)}>
             ×
-          </button>
-          <p>MyWeb sizga yoqdimi?</p>
+            </button>
+            <p className="section-label">MyWeb</p>
+            <h2>Baholang</h2>
+            <label>
+              Ismingiz
+              <input
+                type="text"
+                value={reviewForm.name}
+                onChange={(event) => setReviewForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Ismingizni kiriting"
+                maxLength="80"
+                required
+              />
+            </label>
+            <div className="rating-input" role="radiogroup" aria-label="Yulduzli baho">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  className={rating <= reviewForm.rating ? 'selected' : ''}
+                  aria-label={`${rating} yulduz`}
+                  aria-checked={rating === reviewForm.rating}
+                  role="radio"
+                  onClick={() => setReviewForm((prev) => ({ ...prev, rating }))}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <label>
+              Izoh
+              <textarea
+                value={reviewForm.comment}
+                onChange={(event) => setReviewForm((prev) => ({ ...prev, comment: event.target.value }))}
+                placeholder="Izohingizni yozing..."
+                rows="4"
+                required
+              />
+            </label>
+            {reviewError && <p className="login-error">Xato: {reviewError}</p>}
+            <button type="submit" className="primary-btn wide-btn login-submit">
+              Izohni yuborish
+            </button>
+          </form>
         </div>
       )}
 

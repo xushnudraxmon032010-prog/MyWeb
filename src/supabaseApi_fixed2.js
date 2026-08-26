@@ -56,6 +56,18 @@ export async function deleteFriend(id) {
   return unwrap(await supabase.from('friends').delete().eq('id', id));
 }
 
+export async function getReviews() {
+  return unwrap(await supabase.from('reviews').select('*').order('created_at', { ascending: false }));
+}
+
+export async function createReview(payload) {
+  return unwrap(await supabase.from('reviews').insert(payload));
+}
+
+export async function deleteReview(id) {
+  return unwrap(await supabase.from('reviews').delete().eq('id', id));
+}
+
 export async function loginAdmin(username, password) {
   const result = await supabase.auth.signInWithPassword({ email: adminEmail(username), password });
   if (result.error) return null;
