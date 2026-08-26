@@ -76,6 +76,7 @@ function App() {
   const [acquaintanceError, setAcquaintanceError] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editingFriendId, setEditingFriendId] = useState(null);
   const [friendDraft, setFriendDraft] = useState({ name: '', relation: 'Do’st', note: '' });
   const [editingAcquaintanceId, setEditingAcquaintanceId] = useState(null);
@@ -125,10 +126,28 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (!isSidebarOpen) return undefined;
+
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsSidebarOpen(false);
+    };
+
+    document.addEventListener('keydown', closeOnEscape);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen]);
+
   const pendingAcquaintances = acquaintances.filter((item) => item.status === 'pending');
   const approvedAcquaintances = acquaintances.filter((item) => item.status === 'approved');
 
   const handleAdminButtonClick = () => {
+    setIsSidebarOpen(false);
+
     if (isAdminLoggedIn) {
       setRole('super-admin');
       setShowLogin(false);
@@ -337,10 +356,51 @@ function App() {
           <a href="#contact">Bog’lanish</a>
         </nav>
 
+        <button
+          type="button"
+          className="menu-toggle"
+          aria-label="Menyuni ochish"
+          aria-expanded={isSidebarOpen}
+          onClick={() => setIsSidebarOpen(true)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+
         <button type="button" className="role-toggle" onClick={handleAdminButtonClick}>
           {isAdminLoggedIn ? 'Super admin' : 'Login'}
         </button>
       </header>
+
+      <div
+        className={`sidebar-backdrop${isSidebarOpen ? ' is-visible' : ''}`}
+        aria-hidden="true"
+        onClick={() => setIsSidebarOpen(false)}
+      />
+      <aside className={`sidebar${isSidebarOpen ? ' is-open' : ''}`} aria-label="Asosiy menyu">
+        <div className="sidebar-header">
+          <span className="section-label">Menyu</span>
+          <button
+            type="button"
+            className="sidebar-close"
+            aria-label="Menyuni yopish"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            ×
+          </button>
+        </div>
+        <nav className="sidebar-nav">
+          <a href="#home" onClick={() => setIsSidebarOpen(false)}>Bosh sahifa</a>
+          <a href="#about" onClick={() => setIsSidebarOpen(false)}>Men haqimda</a>
+          <a href="#interests" onClick={() => setIsSidebarOpen(false)}>Qiziqishlar</a>
+          <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Dostlar</a>
+          <a href="#contact" onClick={() => setIsSidebarOpen(false)}>Bog’lanish</a>
+        </nav>
+        <button type="button" className="role-toggle sidebar-login" onClick={handleAdminButtonClick}>
+          {isAdminLoggedIn ? 'Super admin' : 'Login'}
+        </button>
+      </aside>
 
       {role === 'people' ? (
         <main>
