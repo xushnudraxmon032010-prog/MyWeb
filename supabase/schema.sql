@@ -29,10 +29,16 @@ alter table public.acquaintances enable row level security;
 
 drop policy if exists "Public can read profile" on public.profile;
 drop policy if exists "Public can read friends" on public.friends;
-drop policy if exists "Public can submit requests" on public.acquaintances;
-drop policy if exists "Public can read approved" on public.acquaintances;
-drop policy if exists "Authenticated can manage friends" on public.friends;
-drop policy if exists "Authenticated can manage acquaintances" on public.acquaintances;
+do $$
+declare
+  existing_policy record;
+begin
+  for existing_policy in
+    select policyname from pg_policies where schemaname = 'public' and tablename = 'acquaintances'
+  loop
+    execute format('drop policy if exists %I on public.acquaintances', existing_policy.policyname);
+  end loop;
+end $$;
 
 create policy "Public can read profile" on public.profile for select to anon, authenticated using (true);
 create policy "Public can read friends" on public.friends for select to anon, authenticated using (true);
