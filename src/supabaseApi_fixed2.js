@@ -1,5 +1,5 @@
-// Local SQLite API client
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000/api';
+// Use the local API during development and the deployed API in production.
+const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:4000/api' : '/api');
 let adminToken = '';
 
 async function request(path, options = {}) {

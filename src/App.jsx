@@ -58,12 +58,6 @@ const initialProfile = {
   },
 };
 
-const initialFriends = [
-  { id: 1, name: 'Azizbek Karimov', relation: 'Do’st', note: 'Birga loyiha ustida ishlaymiz.' },
-  { id: 2, name: 'Madina Tursunova', relation: 'Tanish', note: 'Kursda birga o’qiyapmiz.' },
-  { id: 3, name: 'Sardor Abdullayev', relation: 'Yaqin do’st', note: 'Frontend va dizayn bo’yicha fikr almashamiz.' },
-];
-
 function App() {
   const [role, setRole] = useState(() => localStorage.getItem('myweb-role') || 'people');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -103,12 +97,12 @@ function App() {
       const allAcquaintances = [...(Array.isArray(pendingData) ? pendingData : []), ...(Array.isArray(approvedData) ? approvedData : [])];
 
       setProfile(profileData || initialProfile);
-      setFriends(Array.isArray(friendsData) ? friendsData : initialFriends);
+      setFriends(Array.isArray(friendsData) ? friendsData : []);
       setAcquaintances(allAcquaintances);
     } catch (error) {
       console.error('Failed to load app data:', error);
       setProfile(initialProfile);
-      setFriends(initialFriends);
+      setFriends([]);
       setAcquaintances([]);
     }
   };
