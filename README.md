@@ -12,13 +12,20 @@ Login oynasida serverdagi admin login ma’lumotlaridan foydalaning. Faqat `npm 
 
 ## Vercel’ga joylashtirish
 
-Bu loyiha frontend (Vite) va Express/SQLite backend’dan iborat. Vercel frontend build’ini ishga tushiradi, lekin `server/server.js` ni avtomatik ravishda alohida server sifatida ishga tushirmaydi.
+Bu loyiha Supabase’ni global ma’lumotlar bazasi sifatida ishlatadi. Avval Supabase **SQL Editor** oynasida [`supabase/schema.sql`](supabase/schema.sql) faylidagi SQL kodni bir marta ishga tushiring.
 
-1. `server` papkasini Render, Railway yoki boshqa Node.js hosting xizmatiga deploy qiling.
-2. Vercel project settings’da `VITE_API_BASE` nomli environment variable yarating va unga backend manzilini `/api` siz kiriting, masalan `https://myweb-api.example.com/api`.
-3. Vercel’da redeploy qiling.
+Admin login uchun Supabase **Authentication → Users** bo‘limida admin foydalanuvchi yarating. Login oynasida shu foydalanuvchining email va parolini kiriting.
 
-`VITE_API_BASE` berilmasa, production frontend same-origin `/api` manzilidan foydalanadi. Bu faqat backend Vercel route sifatida ham deploy qilingan holatda ishlaydi; oddiy frontend deploy’da ma’lumotlar, login va admin amallari ishlamaydi.
+Vercel project settings’da quyidagi environment variable’larni qo‘shing:
+
+```env
+VITE_SUPABASE_URL=https://sizning-loyiha-id.supabase.co
+VITE_SUPABASE_ANON_KEY=sizning-publishable-key
+```
+
+Keyin Vercel’da redeploy qiling. So‘rovlar Supabase’ga tushadi va tasdiqlangan tanishlar barcha qurilmalarda ko‘rinadi.
+
+Lokal backend (`server/server.js`) eski development rejimi uchun qoldirilgan.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
