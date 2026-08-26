@@ -73,6 +73,7 @@ function App() {
   });
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
+  const [acquaintanceError, setAcquaintanceError] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [editingFriendId, setEditingFriendId] = useState(null);
@@ -200,6 +201,7 @@ function App() {
   const addAcquaintance = async (event) => {
     event.preventDefault();
     if (!acquaintanceForm.firstName || !acquaintanceForm.lastName || !acquaintanceForm.phone) return;
+    setAcquaintanceError('');
 
     try {
       const newAcq = await createSupabaseAcquaintance({
@@ -215,6 +217,7 @@ function App() {
       alert('So’rovingiz yuborildi. Super admin tasdiqlashini kuting.');
     } catch (error) {
       console.error('Acquaintance create failed:', error);
+      setAcquaintanceError(error.message || 'So‘rov yuborilmadi.');
     }
   };
 
@@ -525,6 +528,7 @@ function App() {
               <button type="submit" className="primary-btn wide-btn">
                 Yuborish
               </button>
+              {acquaintanceError && <p className="login-error">Xato: {acquaintanceError}</p>}
             </form>
           </section>
 
