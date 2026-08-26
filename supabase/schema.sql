@@ -42,7 +42,7 @@ end $$;
 
 create policy "Public can read profile" on public.profile for select to anon, authenticated using (true);
 create policy "Public can read friends" on public.friends for select to anon, authenticated using (true);
-create policy "Public can submit requests" on public.acquaintances for insert to anon, authenticated with check (status = 'pending');
+create policy "Public can submit requests" on public.acquaintances for insert to public with check (status = 'pending');
 create policy "Public can read approved" on public.acquaintances for select to anon, authenticated using (status = 'approved');
 create policy "Authenticated can manage friends" on public.friends for all to authenticated using (true) with check (true);
 create policy "Authenticated can manage acquaintances" on public.acquaintances for all to authenticated using (true) with check (true);
