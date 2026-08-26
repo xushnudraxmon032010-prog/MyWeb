@@ -81,6 +81,13 @@ button {
   gap: 12px;
   font-weight: 700;
   letter-spacing: -0.04em;
+  min-width: 0;
+}
+
+.brand-wrap > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .brand-logo {
@@ -167,6 +174,7 @@ button {
   display: flex;
   gap: 18px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .primary-btn,
@@ -178,6 +186,7 @@ button {
   padding: 14px 22px;
   border-radius: 999px;
   border: 1px solid transparent;
+  min-height: 44px;
   transition: transform 0.2s ease;
 }
 
@@ -188,7 +197,8 @@ button {
   color: var(--forest);
   text-decoration: none;
   font-weight: 600;
-  padding: 14px 4px;
+  min-height: 44px;
+  padding: 14px 10px;
 }
 
 .donate-btn span,
@@ -366,6 +376,11 @@ button {
   position: relative;
 }
 
+.person-card > div:nth-child(2) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .person-avatar {
   width: 64px;
   height: 64px;
@@ -540,6 +555,10 @@ textarea {
   gap: 24px;
 }
 
+.footer-contact > div {
+  min-width: 0;
+}
+
 .footer-contact h2 {
   margin: 8px 0 0;
   font-size: clamp(2rem, 4vw, 3rem);
@@ -558,13 +577,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 10px 14px;
-}
-
-.donate-footer-link {
-  background: var(--gold);
-  border-color: var(--gold-dark) !important;
-  color: var(--ink) !important;
-  font-weight: 600;
+  min-height: 44px;
 }
 
 .admin-panel {
@@ -577,6 +590,7 @@ textarea {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0 32px;
+  flex-wrap: wrap;
 }
 
 .admin-header h2 {
@@ -614,6 +628,11 @@ textarea {
   margin-top: 12px;
 }
 
+.request-card > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .request-card strong {
   display: block;
 }
@@ -632,6 +651,7 @@ textarea {
   border: none;
   border-radius: 999px;
   padding: 10px 14px;
+  min-height: 44px;
 }
 
 .request-actions {
@@ -651,6 +671,7 @@ textarea {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .danger-btn {
@@ -682,6 +703,7 @@ textarea {
   display: flex;
   gap: 8px;
   margin-top: 6px;
+  flex-wrap: wrap;
 }
 
 .popup {
@@ -743,6 +765,8 @@ textarea {
   border: 1px solid var(--line);
   padding: 28px 26px 22px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.15);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 .review-modal h2 {
@@ -758,12 +782,14 @@ textarea {
 }
 
 .rating-input button {
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
   color: var(--line);
   font-size: 2rem;
   line-height: 1;
-  padding: 2px;
+  padding: 0;
 }
 
 .rating-input button.selected,
@@ -784,6 +810,11 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 14px 16px;
+}
+
+.review-card > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .review-card p {
@@ -892,6 +923,11 @@ textarea {
 
   .topbar {
     padding: 16px 20px;
+    gap: 12px;
+  }
+
+  .topbar > .brand-wrap {
+    flex: 1 1 auto;
   }
 
   .nav,
@@ -906,6 +942,7 @@ textarea {
     border-radius: 12px;
     background: var(--paper);
     display: grid;
+    flex: 0 0 44px;
     place-content: center;
     gap: 4px;
   }
@@ -960,8 +997,8 @@ textarea {
   }
 
   .sidebar-close {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: transparent;
@@ -999,6 +1036,23 @@ textarea {
 
   .hero-card {
     margin-top: 26px;
+  }
+
+  .hero-actions {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .hero-actions .primary-btn,
+  .hero-actions .secondary-btn,
+  .hero-actions .donate-btn {
+    flex: 1 1 auto;
+  }
+
+  .feedback-trigger {
+    right: 16px;
+    bottom: 16px;
+    max-width: calc(100vw - 32px);
   }
 
   .interest-grid,

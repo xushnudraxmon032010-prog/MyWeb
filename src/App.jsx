@@ -684,7 +684,6 @@ function App() {
             </div>
 
             <div className="social-links">
-              <a href="#contact" className="donate-footer-link">Donate qilish</a>
               <a href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
                 Telegram
               </a>
