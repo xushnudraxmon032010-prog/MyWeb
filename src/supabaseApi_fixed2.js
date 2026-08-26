@@ -12,7 +12,11 @@ export async function getProfile() {
   if (!row) return null;
   return {
     ...row,
-    socialLinks: { telegram: row.telegram || '', instagram: row.instagram || '', youtube: row.youtube || '' },
+    socialLinks: {
+      telegram: row.telegram || '',
+      instagram: 'https://instagram.com/_sherqulovv_o1',
+      youtube: 'https://youtube.com/@Xushnudraxmon01',
+    },
   };
 }
 

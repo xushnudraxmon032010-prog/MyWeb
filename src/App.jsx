@@ -56,8 +56,8 @@ const initialProfile = {
   ],
   socialLinks: {
     telegram: 'https://t.me/+998200101026',
-    instagram: 'https://instagram.com/_sherqulovv_010',
-    youtube: 'https://youtube.com/@yourchannel',
+    instagram: 'https://instagram.com/_sherqulovv_o1',
+    youtube: 'https://youtube.com/@Xushnudraxmon01',
   },
 };
 
@@ -380,7 +380,7 @@ function App() {
     >
       <header className="topbar">
         <div className="brand-wrap">
-          <span className="brand-logo">MW</span>
+          <img className="brand-logo" src="/favicon.svg" alt="MyWeb logo" />
           <span>{brand.name}</span>
         </div>
 
@@ -389,6 +389,7 @@ function App() {
           <a href="#about">Men haqimda</a>
           <a href="#interests">Qiziqishlar</a>
           <a href="#friends">Dostlar</a>
+          <a href="#donate">Donate</a>
           <a href="#contact">Bog’lanish</a>
         </nav>
 
@@ -431,6 +432,7 @@ function App() {
           <a href="#about" onClick={() => setIsSidebarOpen(false)}>Men haqimda</a>
           <a href="#interests" onClick={() => setIsSidebarOpen(false)}>Qiziqishlar</a>
           <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Dostlar</a>
+          <a href="#donate" onClick={() => setIsSidebarOpen(false)}>Donate</a>
           <a href="#contact" onClick={() => setIsSidebarOpen(false)}>Bog’lanish</a>
         </nav>
         <button type="button" className="role-toggle sidebar-login" onClick={handleAdminButtonClick}>
@@ -455,6 +457,9 @@ function App() {
                 </a>
                 <a href="#contact" className="secondary-btn">
                   Bog’lanish
+                </a>
+                <a href="#contact" className="donate-btn">
+                  Donate <span aria-hidden="true">↗</span>
                 </a>
               </div>
 
@@ -628,13 +633,58 @@ function App() {
             </form>
           </section>
 
+          <section id="donate" className="donate-section">
+            <div className="donate-intro">
+              <div>
+                <p className="section-label">06 / DONATE XIZMATI</p>
+                <h2>Sevimli o‘yiningizni yanada qiziqarli qiling.</h2>
+              </div>
+              <p>
+                Sizga istalgan o‘yinga donate xizmati mavjud. Tez, qulay va ishonchli yordam kerak bo‘lsa,
+                men bilan bog‘laning.
+              </p>
+            </div>
+
+            <div className="donate-grid">
+              <article className="donate-card donate-card-main">
+                <span className="donate-number">01</span>
+                <div>
+                  <span className="donate-icon" aria-hidden="true">✦</span>
+                  <h3>Istalgan o‘yinga</h3>
+                  <p>Sevimli o‘yiningiz uchun kerakli donate xizmatini topamiz.</p>
+                </div>
+              </article>
+              <article className="donate-card donate-card-fast">
+                <span className="donate-number">02</span>
+                <div>
+                  <span className="donate-icon" aria-hidden="true">↗</span>
+                  <h3>Tezkor xizmat</h3>
+                  <p>Buyurtmangizni ortiqcha kutishlarsiz ko‘rib chiqamiz.</p>
+                </div>
+              </article>
+              <article className="donate-card donate-card-trust">
+                <span className="donate-number">03</span>
+                <div>
+                  <span className="donate-icon" aria-hidden="true">♥</span>
+                  <h3>Sizning tanlovingiz</h3>
+                  <p>Donate bo‘yicha savolingiz bo‘lsa, footer orqali yozing.</p>
+                </div>
+              </article>
+            </div>
+
+            <a href="#contact" className="primary-btn donate-cta">
+              Donate kerakmi? Men bilan bog‘laning <span aria-hidden="true">→</span>
+            </a>
+          </section>
+
           <section id="contact" className="footer-contact">
             <div>
               <p className="section-label">05 / BOG’LANISH</p>
-              <h2>Iltimos, bog’laning</h2>
+              <h2>Men bilan bog’laning</h2>
             </div>
 
             <div className="social-links">
+              <a href="#contact" className="donate-footer-link">Donate qilish</a>
               <a href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
                 Telegram
               </a>

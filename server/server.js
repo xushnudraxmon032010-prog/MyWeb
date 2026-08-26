@@ -34,8 +34,8 @@ const defaultProfile = {
   ],
   socialLinks: {
     telegram: 'https://t.me/+998200101026',
-    instagram: 'https://instagram.com/_sherqulovv_010',
-    youtube: 'https://youtube.com/@yourchannel',
+    instagram: 'https://instagram.com/_sherqulovv_o1',
+    youtube: 'https://youtube.com/@Xushnudraxmon01',
   },
 };
 

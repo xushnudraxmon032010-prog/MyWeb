@@ -27,6 +27,11 @@ insert into public.friends (name, relation, note)
 select 'Hojakbar', 'Do’st', 'Mening yaqin do‘stim.'
 where not exists (select 1 from public.friends where name = 'Hojakbar');
 
+update public.profile
+set instagram = 'https://instagram.com/_sherqulovv_o1',
+    youtube = 'https://youtube.com/@Xushnudraxmon01'
+where id = 1;
+
 do $$
 begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'acquaintances' and column_name = 'firstname') then
