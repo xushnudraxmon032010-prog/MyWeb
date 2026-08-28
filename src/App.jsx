@@ -61,6 +61,51 @@ const initialProfile = {
   },
 };
 
+const projects = [
+  {
+    number: '01',
+    title: 'MyWeb portfolio',
+    description: 'Shaxsiy ma’lumotlar, yutuqlar va bog‘lanish uchun zamonaviy portfolio sahifasi.',
+    technologies: ['React', 'CSS', 'Supabase'],
+    tone: 'project-card-green',
+  },
+  {
+    number: '02',
+    title: 'Donate xizmati',
+    description: 'O‘yinchilar uchun tezkor buyurtma va yordam olishga mo‘ljallangan xizmat sahifasi.',
+    technologies: ['UI/UX', 'Forms', 'API'],
+    tone: 'project-card-gold',
+  },
+  {
+    number: '03',
+    title: 'Responsive interfeyslar',
+    description: 'Telefon, planshet va kompyuterda qulay ishlaydigan moslashuvchan dizaynlar.',
+    technologies: ['HTML', 'JavaScript', 'Responsive'],
+    tone: 'project-card-blue',
+  },
+];
+
+const services = [
+  {
+    number: '01',
+    title: 'Landing page',
+    description: 'Biznes yoki shaxsiy brend uchun tezkor va zamonaviy bir sahifali sayt.',
+    tone: 'service-card-light',
+  },
+  {
+    number: '02',
+    title: 'React ilova',
+    description: 'Qulay boshqaruv, formalar va ma’lumotlar bazasiga ulangan web-ilova.',
+    tone: 'service-card-green',
+  },
+  {
+    number: '03',
+    title: 'Responsive dizayn',
+    description: 'Telefon, planshet va kompyuterda birdek chiroyli ishlaydigan interfeys.',
+    tone: 'service-card-gold',
+  },
+];
+
 function App() {
   const [role, setRole] = useState(() => localStorage.getItem('myweb-role') || 'people');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
@@ -100,7 +145,7 @@ function App() {
         getFriends(),
         isAdminLoggedIn ? getPendingAcquaintances() : Promise.resolve([]),
         getApprovedAcquaintances(),
-        isAdminLoggedIn ? getReviews() : Promise.resolve([]),
+        getReviews(),
       ]);
 
       const allAcquaintances = [...(Array.isArray(pendingData) ? pendingData : []), ...(Array.isArray(approvedData) ? approvedData : [])];
@@ -387,8 +432,11 @@ function App() {
         <nav className="nav">
           <a href="#home">Bosh sahifa</a>
           <a href="#about">Men haqimda</a>
+          <a href="#projects">Loyihalar</a>
+          <a href="#services">Xizmatlar</a>
           <a href="#interests">Qiziqishlar</a>
           <a href="#friends">Dostlar</a>
+          <a href="#friends">Tanishlar</a>
           <a href="#donate">Donate</a>
           <a href="#contact">Bog’lanish</a>
         </nav>
@@ -430,8 +478,11 @@ function App() {
         <nav className="sidebar-nav">
           <a href="#home" onClick={() => setIsSidebarOpen(false)}>Bosh sahifa</a>
           <a href="#about" onClick={() => setIsSidebarOpen(false)}>Men haqimda</a>
+          <a href="#projects" onClick={() => setIsSidebarOpen(false)}>Loyihalar</a>
+          <a href="#services" onClick={() => setIsSidebarOpen(false)}>Xizmatlar</a>
           <a href="#interests" onClick={() => setIsSidebarOpen(false)}>Qiziqishlar</a>
           <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Dostlar</a>
+          <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Tanishlar</a>
           <a href="#donate" onClick={() => setIsSidebarOpen(false)}>Donate</a>
           <a href="#contact" onClick={() => setIsSidebarOpen(false)}>Bog’lanish</a>
         </nav>
@@ -457,6 +508,14 @@ function App() {
                 </a>
                 <a href="#contact" className="secondary-btn">
                   Bog’lanish
+                </a>
+                <a
+                  href={profile.socialLinks.telegram}
+                  className="telegram-btn"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Telegram orqali yozish <span aria-hidden="true">↗</span>
                 </a>
                 <a href="#contact" className="donate-btn">
                   Donate <span aria-hidden="true">↗</span>
@@ -494,6 +553,68 @@ function App() {
                 ))}
               </ul>
               </div>
+            </div>
+          </section>
+
+          <section id="projects" className="info-section projects-section">
+            <div className="section-title-wrap projects-heading">
+              <div>
+                <p className="section-label">02 / LOYIHALARIM</p>
+                <h2>Qilgan ishlarim</h2>
+              </div>
+              <p>O‘rgangan bilimlarimni amaliy loyihalarda sinab, foydali va qulay mahsulotlar yarataman.</p>
+            </div>
+
+            <div className="project-grid">
+              {projects.map((project) => (
+                <article key={project.number} className={`project-card ${project.tone}`}>
+                  <div className="project-card-top">
+                    <span className="project-number">{project.number}</span>
+                    <span className="project-mark" aria-hidden="true">↗</span>
+                  </div>
+                  <div>
+                    <h3>{project.title}</h3>
+                    <p>{project.description}</p>
+                  </div>
+                  <div className="project-tags">
+                    {project.technologies.map((technology) => (
+                      <span key={technology}>{technology}</span>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section id="services" className="info-section services-section">
+            <div className="section-title-wrap services-heading">
+              <div>
+                <p className="section-label">03 / XIZMATLARIM</p>
+                <h2>Nima qila olaman?</h2>
+              </div>
+              <a
+                href={profile.socialLinks.telegram}
+                className="primary-btn"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Buyurtma berish <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+
+            <div className="service-grid">
+              {services.map((service) => (
+                <article key={service.number} className={`service-card ${service.tone}`}>
+                  <span className="service-number">{service.number}</span>
+                  <div>
+                    <h3>{service.title}</h3>
+                    <p>{service.description}</p>
+                  </div>
+                  <a href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
+                    Batafsil yozish <span aria-hidden="true">→</span>
+                  </a>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -537,7 +658,7 @@ function App() {
             </div>
           </section>
 
-          <section className="info-section">
+          <section id="acquaintances" className="info-section">
             <div className="section-title-wrap">
               <p className="section-label">04 / TANISHLAR</p>
               <h2>Tanishlar</h2>
@@ -556,7 +677,7 @@ function App() {
                       </h3>
                       <p className="role-tag">Tanish</p>
                       <small>
-                        {item.age ? `${item.age} yosh` : 'Yosh noma’lum'} • {item.phone}
+                        {item.age ? `${item.age} yosh` : 'Yosh noma’lum'} • Aloqa tasdiqlangan
                       </small>
                     </div>
                   </article>
@@ -565,7 +686,7 @@ function App() {
             </div>
           </section>
 
-          <section className="info-section form-section">
+          <section id="acquaintance-form" className="info-section form-section">
             <div className="section-title-wrap">
               <p className="section-label">05 / TANISH QOLDIRISH</p>
               <h2>Tanishlar</h2>
@@ -667,14 +788,64 @@ function App() {
                 <div>
                   <span className="donate-icon" aria-hidden="true">♥</span>
                   <h3>Sizning tanlovingiz</h3>
-                  <p>Donate bo‘yicha savolingiz bo‘lsa, footer orqali yozing.</p>
+                  <p>O‘yin, server va kerakli paketni ayting, mos variantni birga tanlaymiz.</p>
                 </div>
               </article>
+            </div>
+
+            <div className="donate-details">
+              <div>
+                <span className="section-label">QANDAY BUYURTMA BERILADI?</span>
+                <ol className="donate-steps">
+                  <li><strong>O‘yinni ayting</strong><span>O‘yin nomi va serveringizni yuboring.</span></li>
+                  <li><strong>Paketni tanlang</strong><span>Kerakli donate miqdorini birga aniqlaymiz.</span></li>
+                  <li><strong>Natijani kuting</strong><span>Buyurtma holati haqida Telegram’da xabar olasiz.</span></li>
+                </ol>
+              </div>
+              <div className="donate-requirements">
+                <span className="section-label">KERAK BO‘LADIGAN MA’LUMOTLAR</span>
+                <p>O‘yin nomi, player ID, server va paket nomi kifoya. Hech qachon akkaunt parolingizni yubormang.</p>
+              </div>
             </div>
 
             <a href="#contact" className="primary-btn donate-cta">
               Donate kerakmi? Men bilan bog‘laning <span aria-hidden="true">→</span>
             </a>
+          </section>
+
+          <section className="info-section reviews-section">
+            <div className="section-title-wrap reviews-heading">
+              <div>
+                <p className="section-label">07 / FOYDALANUVCHILAR FIKRI</p>
+                <h2>Men haqimda nima deyishadi?</h2>
+              </div>
+              <button type="button" className="secondary-btn" onClick={() => setShowAlert(true)}>
+                Fikr qoldirish <span aria-hidden="true">★</span>
+              </button>
+            </div>
+
+            {reviews.length === 0 ? (
+              <div className="reviews-empty">
+                <p>Hali fikrlar yo‘q. Birinchi bo‘lib fikringizni qoldiring.</p>
+                <button type="button" className="primary-btn" onClick={() => setShowAlert(true)}>
+                  Fikr qoldirish
+                </button>
+              </div>
+            ) : (
+              <div className="public-review-grid">
+                {reviews.map((review) => (
+                  <article key={review.id} className="public-review-card">
+                    <div className="public-review-top">
+                      <strong>{review.name || 'Foydalanuvchi'}</strong>
+                      <span className="review-stars" aria-label={`${review.rating} yulduz`}>
+                        {'★'.repeat(review.rating)}
+                      </span>
+                    </div>
+                    <p>{review.comment}</p>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
 
           <section id="contact" className="footer-contact">
@@ -684,7 +855,7 @@ function App() {
             </div>
 
             <div className="social-links">
-              <a href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
+              <a className="telegram-link" href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
                 Telegram
               </a>
               <a href={profile.socialLinks.instagram} target="_blank" rel="noreferrer">

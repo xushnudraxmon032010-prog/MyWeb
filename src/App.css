@@ -201,6 +201,25 @@ button {
   padding: 14px 10px;
 }
 
+.telegram-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 14px 10px;
+  color: #168acd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.telegram-btn span {
+  transition: transform 0.2s ease;
+}
+
+.telegram-btn:hover span {
+  transform: translate(3px, -2px);
+}
+
 .donate-btn span,
 .donate-cta span {
   transition: transform 0.2s ease;
@@ -323,6 +342,172 @@ button {
   padding-left: 20px;
   color: var(--muted);
   line-height: 1.8;
+}
+
+.projects-section {
+  padding-top: 78px;
+}
+
+.projects-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.projects-heading > p {
+  max-width: 380px;
+  margin: 0 0 4px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.project-card {
+  min-height: 300px;
+  border: 1px solid rgba(16, 46, 36, 0.1);
+  border-radius: 20px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.project-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 16px 28px rgba(16, 46, 36, 0.12);
+}
+
+.project-card-green { background: var(--forest); color: white; }
+.project-card-gold { background: var(--gold); color: var(--ink); }
+.project-card-blue { background: #cddfe7; color: var(--ink); }
+
+.project-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.project-number {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.76rem;
+  opacity: 0.7;
+}
+
+.project-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 1.2rem;
+}
+
+.project-card h3 {
+  margin: 0 0 10px;
+  font-size: 1.55rem;
+}
+
+.project-card p {
+  max-width: 290px;
+  margin: 0;
+  line-height: 1.6;
+  opacity: 0.76;
+}
+
+.project-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.project-tags span {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 0.72rem;
+  opacity: 0.78;
+}
+
+.services-section {
+  padding-top: 78px;
+}
+
+.services-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.services-heading .primary-btn {
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.service-card {
+  min-height: 280px;
+  border: 1px solid rgba(16, 46, 36, 0.1);
+  border-radius: 20px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.service-card-light { background: #f8f1e6; }
+.service-card-green { background: var(--forest); color: white; }
+.service-card-gold { background: var(--gold); color: var(--ink); }
+
+.service-number {
+  align-self: flex-end;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.76rem;
+  opacity: 0.7;
+}
+
+.service-card h3 {
+  margin: 0 0 10px;
+  font-size: 1.55rem;
+}
+
+.service-card p {
+  max-width: 290px;
+  margin: 0;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.service-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.service-card a span {
+  transition: transform 0.2s ease;
+}
+
+.service-card a:hover span {
+  transform: translateX(4px);
 }
 
 .light-section {
@@ -490,9 +675,123 @@ button {
   opacity: 0.75;
 }
 
+.donate-details {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 28px;
+  margin-top: 26px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(244, 234, 215, 0.5);
+}
+
+.donate-steps {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: donate-step;
+}
+
+.donate-steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: 10px;
+  counter-increment: donate-step;
+}
+
+.donate-steps li::before {
+  content: counter(donate-step, decimal-leading-zero);
+  color: var(--gold-dark);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.76rem;
+}
+
+.donate-steps span {
+  grid-column: 2;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.donate-requirements {
+  padding-left: 24px;
+  border-left: 1px solid var(--line);
+}
+
+.donate-requirements p {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
 .donate-cta {
   gap: 12px;
   margin-top: 24px;
+}
+
+.reviews-section {
+  padding-top: 82px;
+}
+
+.reviews-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.reviews-heading .secondary-btn {
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.public-review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.public-review-card {
+  min-height: 160px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(244, 234, 215, 0.58);
+}
+
+.public-review-top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-review-top strong {
+  overflow-wrap: anywhere;
+}
+
+.public-review-card p {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.reviews-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+.reviews-empty p {
+  margin: 0;
+  color: var(--muted);
 }
 
 @keyframes donate-rise {
@@ -580,6 +879,12 @@ textarea {
   min-height: 44px;
 }
 
+.social-links .telegram-link {
+  background: #168acd;
+  border-color: #168acd;
+  color: white;
+}
+
 .admin-panel {
   padding: 32px 28px 80px;
 }
@@ -645,13 +950,25 @@ textarea {
 
 .request-card button,
 .card-actions button,
-.inline-actions button {
+.inline-actions button,
+.review-card button {
   background: var(--forest);
   color: white;
-  border: none;
+  border: 1px solid var(--forest);
   border-radius: 999px;
   padding: 10px 14px;
   min-height: 44px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.request-card button:hover,
+.card-actions button:hover,
+.inline-actions button:hover,
+.review-card button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(6, 67, 50, 0.16);
 }
 
 .request-actions {
@@ -676,6 +993,13 @@ textarea {
 
 .danger-btn {
   background: var(--danger) !important;
+  border-color: var(--danger) !important;
+  color: white !important;
+}
+
+.danger-btn:hover {
+  background: #8f1d15 !important;
+  box-shadow: 0 8px 16px rgba(180, 35, 24, 0.2) !important;
 }
 
 .empty-message {
@@ -905,6 +1229,25 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  main:not(.admin-panel) > section {
+    display: none;
+    min-height: calc(100vh - 77px);
+  }
+
+  main:not(.admin-panel) > section#home,
+  main:not(.admin-panel) > section:target {
+    display: block;
+  }
+
+  main:not(.admin-panel):has(> section:target:not(#home)) > section#home {
+    display: none;
+  }
+
+  main:not(.admin-panel):has(> section#friends:target) > section#acquaintances,
+  main:not(.admin-panel):has(> section#friends:target) > section#acquaintance-form {
+    display: block;
+  }
+
   .hero,
   .footer-contact,
   .donate-intro,
@@ -912,8 +1255,18 @@ textarea {
   .content-grid,
   .admin-grid,
   .interest-grid,
-  .card-grid {
+  .card-grid,
+  .project-grid,
+  .service-grid,
+  .public-review-grid {
     grid-template-columns: 1fr;
+  }
+
+  .projects-heading,
+  .services-heading,
+  .reviews-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .footer-contact {
@@ -1045,6 +1398,7 @@ textarea {
 
   .hero-actions .primary-btn,
   .hero-actions .secondary-btn,
+  .hero-actions .telegram-btn,
   .hero-actions .donate-btn {
     flex: 1 1 auto;
   }
@@ -1066,5 +1420,35 @@ textarea {
 
   .donate-section {
     padding-top: 76px;
+  }
+
+  .donate-details {
+    grid-template-columns: 1fr;
+  }
+
+  .donate-requirements {
+    padding: 20px 0 0;
+    border-top: 1px solid var(--line);
+    border-left: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero,
+  .info-section,
+  .donate-section,
+  .footer-contact,
+  .admin-panel {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .hero h1 {
+    font-size: 3rem;
+  }
+
+  .reviews-empty {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
