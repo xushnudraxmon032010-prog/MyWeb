@@ -33,7 +33,7 @@ export async function getPendingAcquaintances() {
 }
 
 export async function createAcquaintance(payload) {
-  return unwrap(await supabase.from('acquaintances').insert({ ...payload, status: 'pending' }).select().single());
+  return unwrap(await supabase.from('acquaintances').insert({ ...payload, status: 'pending' }));
 }
 
 export async function approveAcquaintance(id) {
@@ -70,6 +70,14 @@ export async function createReview(payload) {
 
 export async function deleteReview(id) {
   return unwrap(await supabase.from('reviews').delete().eq('id', id));
+}
+
+export async function recordVisitor(visitorId) {
+  return unwrap(await supabase.from('visitor_events').insert({ visitor_id: visitorId }));
+}
+
+export async function getMonthlyVisitorStats() {
+  return unwrap(await supabase.rpc('get_monthly_visitor_stats'));
 }
 
 export async function loginAdmin(username, password) {

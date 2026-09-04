@@ -5,8 +5,10 @@
 Windows’da frontend va backendni birga ishga tushirish uchun:
 
 ```bash
-npm run dev:all
+npm.cmd run dev:all
 ```
+
+PowerShell `npm` skriptlarini bloklasa, `npm.cmd` orqali ishga tushiring.
 
 Login oynasida serverdagi admin login ma’lumotlaridan foydalaning. Faqat `npm run dev` ishga tushirilsa, API ishlamagani uchun login va ariza yuborish ishlamaydi.
 

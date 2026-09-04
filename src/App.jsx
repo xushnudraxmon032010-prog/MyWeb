@@ -11,8 +11,10 @@ import {
   getPendingAcquaintances,
   getProfile,
   getReviews,
+  getMonthlyVisitorStats,
   loginAdmin,
   createReview,
+  recordVisitor,
   deleteReview,
   updateAcquaintance as updateSupabaseAcquaintance,
   updateFriend as updateSupabaseFriend,
@@ -122,8 +124,10 @@ function App() {
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [acquaintanceError, setAcquaintanceError] = useState('');
+  const [showAcquaintanceSuccess, setShowAcquaintanceSuccess] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [visitorStats, setVisitorStats] = useState([]);
   const [reviewForm, setReviewForm] = useState({ name: '', rating: 0, comment: '' });
   const [reviewError, setReviewError] = useState('');
   const [showLogin, setShowLogin] = useState(false);
@@ -140,12 +144,13 @@ function App() {
 
   const loadAppData = async () => {
     try {
-      const [profileData, friendsData, pendingData, approvedData, reviewsData] = await Promise.all([
+      const [profileData, friendsData, pendingData, approvedData, reviewsData, visitorStatsData] = await Promise.all([
         getProfile(),
         getFriends(),
         isAdminLoggedIn ? getPendingAcquaintances() : Promise.resolve([]),
         getApprovedAcquaintances(),
         getReviews(),
+        isAdminLoggedIn ? getMonthlyVisitorStats() : Promise.resolve([]),
       ]);
 
       const allAcquaintances = [...(Array.isArray(pendingData) ? pendingData : []), ...(Array.isArray(approvedData) ? approvedData : [])];
@@ -154,14 +159,34 @@ function App() {
       setFriends(Array.isArray(friendsData) ? friendsData : []);
       setAcquaintances(allAcquaintances);
       setReviews(Array.isArray(reviewsData) ? reviewsData : []);
+      setVisitorStats(Array.isArray(visitorStatsData) ? visitorStatsData : []);
     } catch (error) {
       console.error('Failed to load app data:', error);
       setProfile(initialProfile);
       setFriends([]);
       setAcquaintances([]);
       setReviews([]);
+      setVisitorStats([]);
     }
   };
+
+  useEffect(() => {
+    if (role !== 'people') return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    let visitorId = localStorage.getItem('myweb-visitor-id');
+
+    if (!visitorId) {
+      visitorId = window.crypto?.randomUUID?.() || `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem('myweb-visitor-id', visitorId);
+    }
+
+    if (localStorage.getItem('myweb-last-visit') === today) return;
+
+    void recordVisitor(visitorId)
+      .then(() => localStorage.setItem('myweb-last-visit', today))
+      .catch((error) => console.error('Visitor tracking failed:', error));
+  }, [role]);
 
   useEffect(() => {
     localStorage.setItem('myweb-role', role);
@@ -304,7 +329,7 @@ function App() {
     setAcquaintanceError('');
 
     try {
-      const newAcq = await createSupabaseAcquaintance({
+      await createSupabaseAcquaintance({
         firstName: acquaintanceForm.firstName.trim(),
         lastName: acquaintanceForm.lastName.trim(),
         age: Number(acquaintanceForm.age || 0),
@@ -312,9 +337,8 @@ function App() {
         status: 'pending',
       });
 
-      setAcquaintances((prev) => [newAcq, ...prev]);
       setAcquaintanceForm({ firstName: '', lastName: '', age: '', phone: '' });
-      alert('So’rovingiz yuborildi. Super admin tasdiqlashini kuting.');
+      setShowAcquaintanceSuccess(true);
     } catch (error) {
       console.error('Acquaintance create failed:', error);
       setAcquaintanceError(error.message || 'So‘rov yuborilmadi.');
@@ -888,6 +912,40 @@ function App() {
             </button>
           </section>
 
+          <section className="admin-card analytics-card">
+            <div className="analytics-heading">
+              <div>
+                <p className="section-label">TASHRIFLAR STATISTIKASI</p>
+                <h3>Oylik tashrifchilar</h3>
+              </div>
+              <span className="analytics-note">Anonim noyob brauzerlar</span>
+            </div>
+            {visitorStats.length === 0 ? (
+              <p className="empty-message">Hali statistika yig‘ilmadi yoki jadval sozlanmagan.</p>
+            ) : (
+              <div className="analytics-list">
+                {visitorStats.map((stat) => {
+                  const maximum = Math.max(...visitorStats.map((item) => Number(item.unique_visitors) || 0), 1);
+                  const visitors = Number(stat.unique_visitors) || 0;
+                  const monthLabel = new Date(`${stat.month}T00:00:00`).toLocaleDateString('uz-UZ', {
+                    month: 'long',
+                    year: 'numeric',
+                  });
+
+                  return (
+                    <div key={stat.month} className="analytics-row">
+                      <span className="analytics-month">{monthLabel}</span>
+                      <div className="analytics-bar-track" aria-hidden="true">
+                        <span className="analytics-bar" style={{ width: `${Math.max((visitors / maximum) * 100, 3)}%` }} />
+                      </div>
+                      <strong>{visitors}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           <div className="admin-grid">
             <section className="admin-card">
               <h3>Dost qo’shish</h3>
@@ -1133,6 +1191,24 @@ function App() {
         <span className="feedback-icon" aria-hidden="true">★</span>
         <span>MyWeb ni baholang</span>
       </button>
+
+      {showAcquaintanceSuccess && (
+        <div className="success-toast" role="status">
+          <div className="success-toast-icon" aria-hidden="true">✓</div>
+          <div className="success-toast-content">
+            <strong>So‘rovingiz uchun rahmat!</strong>
+            <p>Ma’lumotlaringiz yuborildi. Tasdiqlangach, tanishlar ro‘yxatida ko‘rinadi.</p>
+          </div>
+          <button
+            type="button"
+            className="success-toast-close"
+            aria-label="Xabarni yopish"
+            onClick={() => setShowAcquaintanceSuccess(false)}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {showAlert && (
         <div className="login-backdrop" onClick={() => setShowAlert(false)}>
