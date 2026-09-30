@@ -28,6 +28,7 @@ create table if not exists public.visitor_events (
 );
 
 alter table public.reviews add column if not exists name text not null default 'Noma’lum';
+alter table public.acquaintances add column if not exists instagram text default '';
 
 insert into public.friends (name, relation, note)
 select 'Hojakbar', 'Do’st', 'Mening yaqin do‘stim.'
