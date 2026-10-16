@@ -1,5 +1,25 @@
 import { supabase } from './lib/supabase';
 
+export { supabase };
+
+export function parseAcquaintance(item = {}) {
+  const rawPhone = typeof item.phone === 'string' ? item.phone : '';
+  const cleanPhone = rawPhone
+    .split('|')[0]
+    .replace(/[^\d+]/g, '')
+    .trim();
+
+  const directInstagram = typeof item.instagram === 'string' ? item.instagram : '';
+  const instagram = (directInstagram || rawPhone.match(/@([A-Za-z0-9._]+)/)?.[1] || '')
+    .replace(/^@/, '')
+    .trim();
+
+  return {
+    cleanPhone,
+    instagram,
+  };
+}
+
 const adminEmail = (username) => (username.includes('@') ? username.trim() : `${username.trim()}@myweb.local`);
 
 const unwrap = ({ data, error }) => {
@@ -62,6 +82,77 @@ export async function deleteFriend(id) {
 
 export async function getReviews() {
   return unwrap(await supabase.from('reviews').select('*').order('created_at', { ascending: false }));
+}
+
+export async function getGlobalChatMessages() {
+  return unwrap(
+    await supabase
+      .from('chat_messages')
+      .select('id,sender,instagram,message,created_at')
+      .order('created_at', { ascending: false })
+      .limit(200)
+  );
+}
+
+export async function createGlobalChatMessage(payload) {
+  return unwrap(
+    await supabase
+      .from('chat_messages')
+      .insert({
+        sender: payload.sender || 'Guest',
+        instagram: payload.instagram || '',
+        message: payload.message || '',
+      })
+      .select()
+      .single()
+  );
+}
+
+export function subscribeToGlobalChatMessages(onMessage) {
+  const channel = supabase
+    .channel('global-chat-room')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+      () => {
+        onMessage?.();
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+export function joinGlobalChatPresence({ instagram, sessionId, onPresence, onTyping, onStatus }) {
+  const channel = supabase.channel('global-chat-presence', {
+    config: { presence: { key: sessionId }, broadcast: { self: false } },
+  });
+
+  channel
+    .on('presence', { event: 'sync' }, () => {
+      const presenceState = channel.presenceState();
+      onPresence?.(Object.values(presenceState).flat());
+    })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (payload?.sessionId !== sessionId) onTyping?.(payload);
+    })
+    .subscribe(async (status) => {
+      onStatus?.(status);
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ instagram, sessionId, onlineAt: new Date().toISOString() });
+      }
+    });
+
+  return {
+    sendTyping: (typing) => channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { instagram, sessionId, typing },
+    }),
+    unsubscribe: () => supabase.removeChannel(channel),
+  };
 }
 
 export async function createReview(payload) {

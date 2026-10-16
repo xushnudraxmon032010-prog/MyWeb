@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import './App.css';
 import {
   approveAcquaintance as approveSupabaseAcquaintance,
@@ -11,15 +11,28 @@ import {
   getPendingAcquaintances,
   getProfile,
   getReviews,
+  getGlobalChatMessages,
   getMonthlyVisitorStats,
   loginAdmin,
   createReview,
+  createGlobalChatMessage,
+  subscribeToGlobalChatMessages,
+  joinGlobalChatPresence,
   recordVisitor,
   deleteReview,
   updateAcquaintance as updateSupabaseAcquaintance,
   updateFriend as updateSupabaseFriend,
   logoutAdmin,
+  parseAcquaintance,
+  supabase,
 } from './supabaseApi_fixed2';
+import HomePage from './pages/HomePage';
+import FriendsPage from './pages/FriendsPage';
+import ProjectsPage from './pages/ProjectsPage';
+import ServicesPage from './pages/ServicesPage';
+import ContactPage from './pages/ContactPage';
+import AdminPage from './pages/AdminPage';
+import LiveVideoRoom from './components/LiveVideoRoom';
 
 const brand = {
   name: 'MyWeb',
@@ -108,19 +121,75 @@ const services = [
   },
 ];
 
+const playSmsTone = () => {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.12, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.22);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.12);
+    gain2.gain.setValueAtTime(0.15, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.4);
+  } catch {
+    // Audio context not allowed or unsupported
+  }
+};
+
 function App() {
   const [role, setRole] = useState(() => localStorage.getItem('myweb-role') || 'people');
+  const [currentPage, setCurrentPage] = useState('home');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [profile, setProfile] = useState(initialProfile);
   const [friends, setFriends] = useState([]);
   const [acquaintances, setAcquaintances] = useState([]);
   const [friendForm, setFriendForm] = useState({ name: '', relation: 'Do’st', note: '' });
-  const [acquaintanceForm, setAcquaintanceForm] = useState({
-    firstName: '',
-    lastName: '',
-    age: '',
-    phone: '',
-  });
+
+  const getInitialInstagram = () => {
+    try {
+      if (typeof window !== 'undefined' && window.location?.search) {
+        const searchParams = new URLSearchParams(window.location.search);
+        const igParam = searchParams.get('ig') || searchParams.get('instagram') || searchParams.get('user');
+        if (igParam) {
+          const clean = igParam.replace(/^@/, '').trim();
+          if (clean) {
+            localStorage.setItem('myweb-user-instagram', clean);
+            return clean;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return localStorage.getItem('myweb-user-instagram') || '';
+  };
+
+  const [acquaintanceForm, setAcquaintanceForm] = useState(() => ({
+    firstName: localStorage.getItem('myweb-user-firstname') || '',
+    lastName: localStorage.getItem('myweb-user-lastname') || '',
+    age: localStorage.getItem('myweb-user-age') || '',
+    phone: localStorage.getItem('myweb-user-phone') || '',
+    instagram: getInitialInstagram(),
+  }));
+
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [acquaintanceError, setAcquaintanceError] = useState('');
@@ -128,7 +197,19 @@ function App() {
   const [showAlert, setShowAlert] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [visitorStats, setVisitorStats] = useState([]);
-  const [reviewForm, setReviewForm] = useState({ name: '', rating: 0, comment: '' });
+
+  const [reviewForm, setReviewForm] = useState(() => {
+    const fName = localStorage.getItem('myweb-user-firstname') || '';
+    const lName = localStorage.getItem('myweb-user-lastname') || '';
+    const fullName = [fName, lName].filter(Boolean).join(' ');
+    return {
+      name: localStorage.getItem('myweb-user-name') || fullName || '',
+      instagram: getInitialInstagram(),
+      rating: 0,
+      comment: '',
+    };
+  });
+
   const [reviewError, setReviewError] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -140,14 +221,229 @@ function App() {
     lastName: '',
     age: '',
     phone: '',
+    instagram: '',
   });
+
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [showChatJoin, setShowChatJoin] = useState(false);
+  const [isVideoChatOpen, setIsVideoChatOpen] = useState(false);
+  const [chatJoinForm, setChatJoinForm] = useState(() => ({
+    instagram: localStorage.getItem('myweb-chat-instagram') || localStorage.getItem('myweb-user-instagram') || '',
+    phone: localStorage.getItem('myweb-chat-phone') || '',
+  }));
+  const [chatDraft, setChatDraft] = useState('');
+  const [globalChatMessages, setGlobalChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [chatConnectionStatus, setChatConnectionStatus] = useState('CONNECTING');
+  const [chatOnlineUsers, setChatOnlineUsers] = useState([]);
+  const [chatTypingUsers, setChatTypingUsers] = useState([]);
+  const [chatSessionId] = useState(() => {
+    const storedSessionId = localStorage.getItem('myweb-chat-session-id');
+    if (storedSessionId) return storedSessionId;
+    const sessionId = window.crypto?.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem('myweb-chat-session-id', sessionId);
+    return sessionId;
+  });
+  const globalChatEndRef = useRef(null);
+  const chatPresenceRef = useRef(null);
+  const chatTypingTimerRef = useRef(null);
+  const remoteTypingTimersRef = useRef(new Map());
+  const sendingChatMessageRef = useRef(false);
+  const [newSmsNotification, setNewSmsNotification] = useState(null);
+  const [showApprovedModal, setShowApprovedModal] = useState(false);
+  const [approvedUserNotice, setApprovedUserNotice] = useState(null);
+  const [mySentRequest, setMySentRequest] = useState(() => {
+    try {
+      const saved = localStorage.getItem('myweb-sent-acquaintance');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isMyRequestApproved, setIsMyRequestApproved] = useState(false);
+  const knownPendingIdsRef = useRef(new Set());
+
+  const pendingAcquaintances = acquaintances.filter((item) => item.status === 'pending');
+  const approvedAcquaintances = acquaintances.filter((item) => item.status === 'approved');
+
+  const loadGlobalChatMessages = async () => {
+    const currentInstagram = (chatJoinForm.instagram || localStorage.getItem('myweb-chat-instagram') || '').replace(/^@/, '').trim().toLowerCase();
+
+    setChatLoading(true);
+    setChatError('');
+    try {
+      const messages = await getGlobalChatMessages();
+      if (Array.isArray(messages)) {
+        const mapped = messages.reverse().map((message) => {
+          const senderInstagram = (message.instagram || message.sender || '').replace(/^@/, '').trim().toLowerCase();
+          return {
+            id: message.id,
+            sender: message.sender || 'Guest',
+            text: message.message || '',
+            mine: senderInstagram === currentInstagram,
+            time: new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            createdAt: message.created_at,
+            instagram: message.instagram || '',
+            phone: message.phone || '',
+          };
+        });
+
+        setGlobalChatMessages(mapped);
+        return;
+      }
+    } catch (error) {
+      console.error('Chat load failed:', error);
+      if (error?.code === 'PGRST205' || error?.message?.includes("Could not find the table 'public.chat_messages'")) {
+        setChatError('Chat jadvali Supabase’da topilmadi. Supabase SQL Editor’da supabase/schema.sql faylini ishga tushiring.');
+      } else {
+        setChatError('Xabarlarni yuklab bo‘lmadi. Supabase ulanish sozlamalarini tekshirib, qayta urinib ko‘ring.');
+      }
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showSmsModal) return undefined;
+    void loadGlobalChatMessages();
+    const cleanup = subscribeToGlobalChatMessages(() => {
+      void loadGlobalChatMessages();
+    });
+
+    return () => cleanup();
+  }, [showSmsModal, chatJoinForm.instagram]);
+
+  useEffect(() => {
+    if (!showSmsModal) return undefined;
+    const instagram = (chatJoinForm.instagram || localStorage.getItem('myweb-chat-instagram') || '').replace(/^@/, '').trim();
+    if (!instagram) return undefined;
+
+    setChatConnectionStatus('CONNECTING');
+    const presence = joinGlobalChatPresence({
+      instagram,
+      sessionId: chatSessionId,
+      onPresence: (users) => setChatOnlineUsers(users),
+      onTyping: ({ instagram: typingInstagram, sessionId, typing }) => {
+        if (!sessionId) return;
+        const username = (typingInstagram || '').trim();
+        if (typing) {
+          setChatTypingUsers((users) => [
+            ...users.filter((user) => user.sessionId !== sessionId),
+            { sessionId, instagram: username },
+          ]);
+          const previousTimer = remoteTypingTimersRef.current.get(sessionId);
+          if (previousTimer) window.clearTimeout(previousTimer);
+          remoteTypingTimersRef.current.set(sessionId, window.setTimeout(() => {
+            setChatTypingUsers((users) => users.filter((user) => user.sessionId !== sessionId));
+            remoteTypingTimersRef.current.delete(sessionId);
+          }, 2500));
+        } else {
+          const previousTimer = remoteTypingTimersRef.current.get(sessionId);
+          if (previousTimer) window.clearTimeout(previousTimer);
+          remoteTypingTimersRef.current.delete(sessionId);
+          setChatTypingUsers((users) => users.filter((user) => user.sessionId !== sessionId));
+        }
+      },
+      onStatus: setChatConnectionStatus,
+    });
+    chatPresenceRef.current = presence;
+
+    return () => {
+      chatPresenceRef.current = null;
+      setChatConnectionStatus('CLOSED');
+      if (chatTypingTimerRef.current) window.clearTimeout(chatTypingTimerRef.current);
+      remoteTypingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      remoteTypingTimersRef.current.clear();
+      setChatTypingUsers([]);
+      void presence.unsubscribe();
+    };
+  }, [showSmsModal, chatJoinForm.instagram, chatSessionId]);
+
+  useEffect(() => {
+    globalChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [globalChatMessages, chatTypingUsers]);
+
+  const openChatModal = () => {
+    setIsVideoChatOpen(false);
+    const savedInstagram = localStorage.getItem('myweb-chat-instagram') || localStorage.getItem('myweb-user-instagram');
+
+    if (savedInstagram?.trim()) {
+      setChatJoinForm((previous) => ({ ...previous, instagram: savedInstagram.replace(/^@/, '').trim() }));
+      setShowSmsModal(true);
+      return;
+    }
+
+    setShowChatJoin(true);
+  };
+
+  const handleChatJoinSubmit = (event) => {
+    event.preventDefault();
+
+    const instagram = chatJoinForm.instagram.trim().replace(/^@/, '');
+    const phone = chatJoinForm.phone.trim();
+
+    if (!instagram) {
+      return;
+    }
+
+    localStorage.setItem('myweb-chat-instagram', instagram);
+    if (phone) localStorage.setItem('myweb-chat-phone', phone);
+    else localStorage.removeItem('myweb-chat-phone');
+    setShowChatJoin(false);
+    setShowSmsModal(true);
+  };
+
+  const sendLiveChatMessage = async () => {
+    if (!chatDraft.trim() || sendingChatMessageRef.current) return;
+
+    const trimmed = chatDraft.trim();
+    const currentInstagram = (chatJoinForm.instagram || localStorage.getItem('myweb-chat-instagram') || '').replace(/^@/, '').trim();
+    const currentUserName = currentInstagram || profile?.name || 'Siz';
+
+    sendingChatMessageRef.current = true;
+    setChatSending(true);
+    setChatError('');
+    try {
+      const savedMessage = await createGlobalChatMessage({
+        sender: currentUserName,
+        instagram: currentInstagram,
+        message: trimmed,
+      });
+
+      const message = {
+        id: savedMessage?.id ?? `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        sender: savedMessage?.sender || currentUserName,
+        text: savedMessage?.message || trimmed,
+        mine: true,
+        time: new Date(savedMessage?.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: savedMessage?.created_at || new Date().toISOString(),
+      };
+
+      setGlobalChatMessages((prev) => (prev.some((item) => item.id === message.id) ? prev : [...prev, message]));
+      setChatDraft('');
+      broadcastChatTyping(false);
+    } catch (error) {
+      console.error('Chat send failed:', error);
+      setChatError('Xabar yuborilmadi. Qayta urinib ko‘ring.');
+    } finally {
+      sendingChatMessageRef.current = false;
+      setChatSending(false);
+    }
+  };
+
+  const broadcastChatTyping = (typing) => {
+    const pending = chatPresenceRef.current?.sendTyping(typing);
+    pending?.catch((error) => console.error('Chat typing update failed:', error));
+  };
 
   const loadAppData = async () => {
     try {
       const [profileData, friendsData, pendingData, approvedData, reviewsData, visitorStatsData] = await Promise.all([
         getProfile(),
         getFriends(),
-        isAdminLoggedIn ? getPendingAcquaintances() : Promise.resolve([]),
+        getPendingAcquaintances(),
         getApprovedAcquaintances(),
         getReviews(),
         isAdminLoggedIn ? getMonthlyVisitorStats() : Promise.resolve([]),
@@ -169,6 +465,105 @@ function App() {
       setVisitorStats([]);
     }
   };
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('acquaintances-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'acquaintances' }, () => {
+        void loadAppData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAdminLoggedIn]);
+
+  useEffect(() => {
+    const checkPendingRequests = async () => {
+      try {
+        const freshPending = await getPendingAcquaintances();
+        if (Array.isArray(freshPending)) {
+          const known = knownPendingIdsRef.current;
+          const newlyAdded = freshPending.filter((item) => !known.has(item.id));
+
+          if (newlyAdded.length > 0) {
+            const latest = newlyAdded[0];
+            const parsed = parseAcquaintance(latest);
+            playSmsTone();
+            setNewSmsNotification({
+              id: latest.id,
+              sender: `${latest.firstName} ${latest.lastName}`,
+              instagram: parsed.instagram,
+              phone: parsed.cleanPhone,
+              age: latest.age,
+            });
+          }
+
+          freshPending.forEach((item) => known.add(item.id));
+
+          setAcquaintances((prev) => {
+            const approved = prev.filter((p) => p.status === 'approved');
+            return [...freshPending, ...approved];
+          });
+        }
+      } catch (err) {
+        console.error('SMS polling error:', err);
+      }
+    };
+
+    void checkPendingRequests();
+    const interval = setInterval(checkPendingRequests, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (acquaintances.length === 0) return undefined;
+
+    const saved = localStorage.getItem('myweb-sent-acquaintance');
+    const seenDismissed = localStorage.getItem('myweb-request-approved-seen');
+    let noticeTimer;
+
+    if (saved) {
+      try {
+        const myReq = JSON.parse(saved);
+        setMySentRequest(myReq);
+
+        const found = approvedAcquaintances.find((item) => {
+          const parsed = parseAcquaintance(item);
+          const itemCleanPhone = (parsed.cleanPhone || '').replace(/\D/g, '');
+          const myCleanPhone = (myReq.cleanPhone || myReq.phone || '').replace(/\D/g, '');
+
+          if (itemCleanPhone && myCleanPhone && itemCleanPhone === myCleanPhone) return true;
+          if (parsed.instagram && myReq.instagram && parsed.instagram.toLowerCase() === myReq.instagram.toLowerCase()) {
+            return true;
+          }
+          if (
+            item.firstName?.trim().toLowerCase() === myReq.firstName?.trim().toLowerCase() &&
+            item.lastName?.trim().toLowerCase() === myReq.lastName?.trim().toLowerCase()
+          ) {
+            return true;
+          }
+          return false;
+        });
+
+        if (found) {
+          setIsMyRequestApproved(true);
+          if (!seenDismissed) {
+            noticeTimer = window.setTimeout(() => {
+              setApprovedUserNotice(found);
+              setShowApprovedModal(true);
+            }, 2000);
+          }
+        }
+      } catch (e) {
+        console.error('Approved check error:', e);
+      }
+    }
+
+    return () => window.clearTimeout(noticeTimer);
+  }, [acquaintances]);
 
   useEffect(() => {
     if (role !== 'people') return;
@@ -212,9 +607,6 @@ function App() {
     };
   }, [isSidebarOpen]);
 
-  const pendingAcquaintances = acquaintances.filter((item) => item.status === 'pending');
-  const approvedAcquaintances = acquaintances.filter((item) => item.status === 'approved');
-
   const handleAdminButtonClick = () => {
     setIsSidebarOpen(false);
 
@@ -257,19 +649,34 @@ function App() {
       return;
     }
 
-    try {
-      if (!reviewForm.name.trim()) {
-        setReviewError('Ismingizni kiriting.');
-        return;
-      }
+    if (!reviewForm.name.trim()) {
+      setReviewError('Ismingizni kiriting.');
+      return;
+    }
 
+    const cleanInstagram = (reviewForm.instagram || '').replace(/^@/, '').trim();
+    const displayName = cleanInstagram
+      ? `${reviewForm.name.trim()} (@${cleanInstagram})`
+      : reviewForm.name.trim();
+
+    try {
       await createReview({
-        name: reviewForm.name.trim(),
+        name: displayName,
         rating: reviewForm.rating,
         comment: reviewForm.comment.trim(),
       });
-      setReviewForm({ name: '', rating: 0, comment: '' });
+
+      if (cleanInstagram) {
+        localStorage.setItem('myweb-user-instagram', cleanInstagram);
+        setAcquaintanceForm((prev) => ({ ...prev, instagram: cleanInstagram }));
+      }
+      localStorage.setItem('myweb-user-name', reviewForm.name.trim());
+
+      setReviewForm((prev) => ({ ...prev, rating: 0, comment: '' }));
       setShowAlert(false);
+
+      const reviewsData = await getReviews();
+      setReviews(Array.isArray(reviewsData) ? reviewsData : []);
     } catch (error) {
       setReviewError(error.message || 'Izohni yuborib bo‘lmadi.');
     }
@@ -328,16 +735,43 @@ function App() {
     if (!acquaintanceForm.firstName || !acquaintanceForm.lastName || !acquaintanceForm.phone) return;
     setAcquaintanceError('');
 
+    const cleanInstagram = (acquaintanceForm.instagram || '').replace(/^@/, '').trim();
+    const phoneVal = acquaintanceForm.phone.trim();
+    const combinedPhone = cleanInstagram ? `${phoneVal} | @${cleanInstagram}` : phoneVal;
+
     try {
       await createSupabaseAcquaintance({
         firstName: acquaintanceForm.firstName.trim(),
         lastName: acquaintanceForm.lastName.trim(),
         age: Number(acquaintanceForm.age || 0),
-        phone: acquaintanceForm.phone.trim(),
+        phone: combinedPhone,
         status: 'pending',
       });
 
-      setAcquaintanceForm({ firstName: '', lastName: '', age: '', phone: '' });
+      const sentReq = {
+        firstName: acquaintanceForm.firstName.trim(),
+        lastName: acquaintanceForm.lastName.trim(),
+        phone: phoneVal,
+        cleanPhone: phoneVal.replace(/\D/g, ''),
+        instagram: cleanInstagram,
+        age: acquaintanceForm.age,
+        submittedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem('myweb-sent-acquaintance', JSON.stringify(sentReq));
+      localStorage.removeItem('myweb-request-approved-seen');
+      setMySentRequest(sentReq);
+      setIsMyRequestApproved(false);
+
+      if (cleanInstagram) {
+        localStorage.setItem('myweb-user-instagram', cleanInstagram);
+        setReviewForm((prev) => ({ ...prev, instagram: cleanInstagram }));
+      }
+      localStorage.setItem('myweb-user-firstname', acquaintanceForm.firstName.trim());
+      localStorage.setItem('myweb-user-lastname', acquaintanceForm.lastName.trim());
+      localStorage.setItem('myweb-user-phone', phoneVal);
+      if (acquaintanceForm.age) localStorage.setItem('myweb-user-age', acquaintanceForm.age);
+
       setShowAcquaintanceSuccess(true);
     } catch (error) {
       console.error('Acquaintance create failed:', error);
@@ -349,17 +783,21 @@ function App() {
     try {
       const updated = await approveSupabaseAcquaintance(id);
       setAcquaintances((prev) => prev.map((item) => (item.id === id ? updated : item)));
+      if (newSmsNotification && newSmsNotification.id === id) {
+        setNewSmsNotification(null);
+      }
     } catch (error) {
       console.error('Acquaintance approve failed:', error);
     }
   };
 
   const addAcquaintanceAsFriend = async (item) => {
+    const parsed = parseAcquaintance(item);
     try {
       const newFriend = await createSupabaseFriend({
         name: `${item.firstName} ${item.lastName}`.trim(),
         relation: 'Do’st',
-        note: item.phone ? `Telefon: ${item.phone}` : 'Yangi qo’shilgan do’st.',
+        note: parsed.cleanPhone ? `Telefon: ${parsed.cleanPhone}${parsed.instagram ? ` • IG: @${parsed.instagram}` : ''}` : 'Yangi qo’shilgan do’st.',
       });
 
       await deleteSupabaseAcquaintance(item.id);
@@ -386,6 +824,9 @@ function App() {
       if (editingAcquaintanceId === id) {
         setEditingAcquaintanceId(null);
       }
+      if (newSmsNotification && newSmsNotification.id === id) {
+        setNewSmsNotification(null);
+      }
     } catch (error) {
       console.error('Acquaintance delete failed:', error);
     }
@@ -410,23 +851,87 @@ function App() {
   };
 
   const startEditingAcquaintance = (item) => {
+    const parsed = parseAcquaintance(item);
     setEditingAcquaintanceId(item.id);
     setAcquaintanceDraft({
       firstName: item.firstName,
       lastName: item.lastName,
       age: String(item.age || ''),
-      phone: item.phone,
+      phone: parsed.cleanPhone,
+      instagram: parsed.instagram,
     });
   };
 
   const saveAcquaintanceEdit = (id) => {
+    const cleanIg = (acquaintanceDraft.instagram || '').replace(/^@/, '').trim();
+    const phoneVal = acquaintanceDraft.phone.trim();
+    const combinedPhone = cleanIg ? `${phoneVal} | @${cleanIg}` : phoneVal;
+
     updateOneAcquaintance(id, {
       firstName: acquaintanceDraft.firstName.trim() || 'Tanish',
       lastName: acquaintanceDraft.lastName.trim() || 'Foydalanuvchi',
       age: Number(acquaintanceDraft.age || 0),
-      phone: acquaintanceDraft.phone.trim(),
+      phone: combinedPhone,
     });
     setEditingAcquaintanceId(null);
+  };
+
+  const isAdminDashboard = role === 'super-admin';
+
+  const handlePageClick = (pageName) => {
+    setCurrentPage(pageName);
+    setIsSidebarOpen(false);
+  };
+
+  const renderPublicPage = () => {
+    switch (currentPage) {
+      case 'projects':
+        return <ProjectsPage projects={projects} profile={profile} />;
+      case 'services':
+        return <ServicesPage services={services} reviews={reviews} openReviewModal={() => setShowAlert(true)} />;
+      case 'friends':
+        return (
+          <FriendsPage
+            friends={friends}
+            approvedAcquaintances={approvedAcquaintances}
+            parseAcquaintance={parseAcquaintance}
+            acquaintanceForm={acquaintanceForm}
+            setAcquaintanceForm={setAcquaintanceForm}
+            addAcquaintance={addAcquaintance}
+            acquaintanceError={acquaintanceError}
+            isMyRequestApproved={isMyRequestApproved}
+            mySentRequest={mySentRequest}
+            reviewForm={reviewForm}
+            setReviewForm={setReviewForm}
+            setShowAlert={setShowAlert}
+          />
+        );
+      case 'contact':
+        return (
+          <ContactPage
+            profile={profile}
+            acquaintanceForm={acquaintanceForm}
+            setAcquaintanceForm={setAcquaintanceForm}
+            addAcquaintance={addAcquaintance}
+            acquaintanceError={acquaintanceError}
+            isMyRequestApproved={isMyRequestApproved}
+            mySentRequest={mySentRequest}
+            reviewForm={reviewForm}
+            setReviewForm={setReviewForm}
+            setShowAlert={setShowAlert}
+          />
+        );
+      default:
+        return (
+          <HomePage
+            profile={profile}
+            friends={friends}
+            approvedAcquaintances={approvedAcquaintances}
+            parseAcquaintance={parseAcquaintance}
+            onOpenAcquaintanceForm={() => setCurrentPage('contact')}
+          />
+        );
+    }
   };
 
   return (
@@ -447,750 +952,143 @@ function App() {
         '--danger': brand.colors.danger,
       }}
     >
-      <header className="topbar">
-        <div className="brand-wrap">
-          <img className="brand-logo" src="/favicon.svg" alt="MyWeb logo" />
-          <span>{brand.name}</span>
-        </div>
-
-        <nav className="nav">
-          <a href="#home">Bosh sahifa</a>
-          <a href="#about">Men haqimda</a>
-          <a href="#projects">Loyihalar</a>
-          <a href="#services">Xizmatlar</a>
-          <a href="#interests">Qiziqishlar</a>
-          <a href="#friends">Dostlar</a>
-          <a href="#friends">Tanishlar</a>
-          <a href="#donate">Donate</a>
-          <a href="#contact">Bog’lanish</a>
-        </nav>
-
-        <button
-          type="button"
-          className="menu-toggle"
-          aria-label="Menyuni ochish"
-          aria-expanded={isSidebarOpen}
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
-
-        <button type="button" className="role-toggle" onClick={handleAdminButtonClick}>
-          {isAdminLoggedIn ? 'Super admin' : 'Login'}
-        </button>
-      </header>
-
-      <div
-        className={`sidebar-backdrop${isSidebarOpen ? ' is-visible' : ''}`}
-        aria-hidden="true"
-        onClick={() => setIsSidebarOpen(false)}
-      />
-      <aside className={`sidebar${isSidebarOpen ? ' is-open' : ''}`} aria-label="Asosiy menyu">
-        <div className="sidebar-header">
-          <span className="section-label">Menyu</span>
-          <button
-            type="button"
-            className="sidebar-close"
-            aria-label="Menyuni yopish"
-            onClick={() => setIsSidebarOpen(false)}
-          >
-            ×
-          </button>
-        </div>
-        <nav className="sidebar-nav">
-          <a href="#home" onClick={() => setIsSidebarOpen(false)}>Bosh sahifa</a>
-          <a href="#about" onClick={() => setIsSidebarOpen(false)}>Men haqimda</a>
-          <a href="#projects" onClick={() => setIsSidebarOpen(false)}>Loyihalar</a>
-          <a href="#services" onClick={() => setIsSidebarOpen(false)}>Xizmatlar</a>
-          <a href="#interests" onClick={() => setIsSidebarOpen(false)}>Qiziqishlar</a>
-          <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Dostlar</a>
-          <a href="#friends" onClick={() => setIsSidebarOpen(false)}>Tanishlar</a>
-          <a href="#donate" onClick={() => setIsSidebarOpen(false)}>Donate</a>
-          <a href="#contact" onClick={() => setIsSidebarOpen(false)}>Bog’lanish</a>
-        </nav>
-        <button type="button" className="role-toggle sidebar-login" onClick={handleAdminButtonClick}>
-          {isAdminLoggedIn ? 'Super admin' : 'Login'}
-        </button>
-      </aside>
-
-      {role === 'people' ? (
-        <main>
-          <section id="home" className="hero">
-            <div className="hero-copy">
-              <p className="eyebrow">SALOM, MEN {profile.name.toUpperCase()} </p>
-              <h1>
-                Men {profile.title}
-                <span>.</span>
-              </h1>
-              <p className="lead">{profile.bio}</p>
-
-              <div className="hero-actions">
-                <a href="#about" className="primary-btn">
-                  Men haqimda
-                </a>
-                <a href="#contact" className="secondary-btn">
-                  Bog’lanish
-                </a>
-                <a
-                  href={profile.socialLinks.telegram}
-                  className="telegram-btn"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Telegram orqali yozish <span aria-hidden="true">↗</span>
-                </a>
-                <a href="#contact" className="donate-btn">
-                  Donate <span aria-hidden="true">↗</span>
-                </a>
-              </div>
-
-              <div className="mini-meta">
-                <span>{profile.city}</span>
-                <span>{profile.course}</span>
-              </div>
+      {!isAdminDashboard && (
+        <>
+          <header className="topbar">
+            <div className="brand-wrap">
+              <img className="brand-logo" src="/favicon.svg" alt="MyWeb logo" />
+              <span>{brand.name}</span>
             </div>
 
-            <div className="hero-card">
-              <div className="avatar-box">{profile.name.charAt(0)}</div>
-              <h3>
-                {profile.name} {profile.surname}
-              </h3>
-              <p>{profile.title}</p>
-            </div>
-          </section>
+            <nav className="nav">
+              <a href="#home" onClick={(event) => { event.preventDefault(); handlePageClick('home'); }}>Bosh sahifa</a>
+              <a href="#projects" onClick={(event) => { event.preventDefault(); handlePageClick('projects'); }}>Loyihalar</a>
+              <a href="#services" onClick={(event) => { event.preventDefault(); handlePageClick('services'); }}>Xizmatlar</a>
+              <a href="#friends" onClick={(event) => { event.preventDefault(); handlePageClick('friends'); }}>Dostlar</a>
+              <a href="#contact" onClick={(event) => { event.preventDefault(); handlePageClick('contact'); }}>Bog’lanish</a>
+            </nav>
 
-          <section id="about" className="info-section">
-            <div className="section-title-wrap">
-              <p className="section-label">01 / MEN HAQIMDA</p>
-              <h2>Men haqimda</h2>
-            </div>
-
-            <div className="content-grid about-grid">
-              <p>{profile.about}</p>
-              <div className="facts-box">
-                <h4>Yutuqlar</h4>
-                <ul>
-                {profile.achievements?.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-              </div>
-            </div>
-          </section>
-
-          <section id="projects" className="info-section projects-section">
-            <div className="section-title-wrap projects-heading">
-              <div>
-                <p className="section-label">02 / LOYIHALARIM</p>
-                <h2>Qilgan ishlarim</h2>
-              </div>
-              <p>O‘rgangan bilimlarimni amaliy loyihalarda sinab, foydali va qulay mahsulotlar yarataman.</p>
-            </div>
-
-            <div className="project-grid">
-              {projects.map((project) => (
-                <article key={project.number} className={`project-card ${project.tone}`}>
-                  <div className="project-card-top">
-                    <span className="project-number">{project.number}</span>
-                    <span className="project-mark" aria-hidden="true">↗</span>
-                  </div>
-                  <div>
-                    <h3>{project.title}</h3>
-                    <p>{project.description}</p>
-                  </div>
-                  <div className="project-tags">
-                    {project.technologies.map((technology) => (
-                      <span key={technology}>{technology}</span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section id="services" className="info-section services-section">
-            <div className="section-title-wrap services-heading">
-              <div>
-                <p className="section-label">03 / XIZMATLARIM</p>
-                <h2>Nima qila olaman?</h2>
-              </div>
-              <a
-                href={profile.socialLinks.telegram}
-                className="primary-btn"
-                target="_blank"
-                rel="noreferrer"
+            <div className="topbar-actions">
+              <button
+                type="button"
+                className="sms-toggle-btn"
+                title="Chat qutisi"
+                aria-label="Chat qutisi"
+                onClick={openChatModal}
               >
-                Buyurtma berish <span aria-hidden="true">↗</span>
-              </a>
-            </div>
-
-            <div className="service-grid">
-              {services.map((service) => (
-                <article key={service.number} className={`service-card ${service.tone}`}>
-                  <span className="service-number">{service.number}</span>
-                  <div>
-                    <h3>{service.title}</h3>
-                    <p>{service.description}</p>
-                  </div>
-                  <a href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
-                    Batafsil yozish <span aria-hidden="true">→</span>
-                  </a>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section id="interests" className="info-section light-section">
-            <div className="section-title-wrap">
-              <p className="section-label">02 / QIZIQISHLARIM</p>
-              <h2>Qiziqishlarim</h2>
-            </div>
-
-           <div className="interest-grid">
-            {profile.interests?.map((item, index) => (
-              <article key={item} className={`interest-card tone-${index + 1}`}>
-                <span>{index + 1}</span>
-                <h3>{item}</h3>
-              </article>
-            ))}
-          </div>
-          </section>
-
-          <section id="friends" className="info-section">
-            <div className="section-title-wrap">
-              <p className="section-label">03 / DOSTLAR</p>
-              <h2>Dostlar</h2>
-            </div>
-
-            <div className="card-grid">
-              {friends.length === 0 ? (
-                <p className="empty-message">Hozircha hech kim yo‘q.</p>
-              ) : (
-                friends.map((friend) => (
-                  <article key={friend.id} className="person-card">
-                    <div className="person-avatar">{friend.name.charAt(0)}</div>
-                    <div>
-                      <h3>{friend.name}</h3>
-                      <p className="role-tag">{friend.relation}</p>
-                      <small>{friend.note}</small>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section id="acquaintances" className="info-section">
-            <div className="section-title-wrap">
-              <p className="section-label">04 / TANISHLAR</p>
-              <h2>Tanishlar</h2>
-            </div>
-
-            <div className="card-grid">
-              {approvedAcquaintances.length === 0 ? (
-                <p className="empty-message">Hozircha hech kim yo‘q.</p>
-              ) : (
-                approvedAcquaintances.map((item) => (
-                  <article key={item.id} className="person-card">
-                    <div className="person-avatar">{item.firstName.charAt(0)}</div>
-                    <div>
-                      <h3>
-                        {item.firstName} {item.lastName}
-                      </h3>
-                      <p className="role-tag">Tanish</p>
-                      <small>
-                        {item.age ? `${item.age} yosh` : 'Yosh noma’lum'} • Aloqa tasdiqlangan
-                      </small>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section id="acquaintance-form" className="info-section form-section">
-            <div className="section-title-wrap">
-              <p className="section-label">05 / TANISH QOLDIRISH</p>
-              <h2>Tanishlar</h2>
-            </div>
-
-            <form className="acquaintance-form" onSubmit={addAcquaintance}>
-              <div className="field-row two-cols">
-                <label>
-                  Ism
-                  <input
-                    type="text"
-                    value={acquaintanceForm.firstName}
-                    onChange={(event) =>
-                      setAcquaintanceForm((prev) => ({ ...prev, firstName: event.target.value }))
-                    }
-                    placeholder="Ismingiz"
-                    required
-                  />
-                </label>
-                <label>
-                  Familya
-                  <input
-                    type="text"
-                    value={acquaintanceForm.lastName}
-                    onChange={(event) =>
-                      setAcquaintanceForm((prev) => ({ ...prev, lastName: event.target.value }))
-                    }
-                    placeholder="Familyangiz"
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="field-row two-cols">
-                <label>
-                  Yosh
-                  <input
-                    type="number"
-                    min="1"
-                    value={acquaintanceForm.age}
-                    onChange={(event) =>
-                      setAcquaintanceForm((prev) => ({ ...prev, age: event.target.value }))
-                    }
-                    placeholder="Yoshingiz"
-                  />
-                </label>
-                <label>
-                  Telefon raqami
-                  <input
-                    type="tel"
-                    value={acquaintanceForm.phone}
-                    onChange={(event) =>
-                      setAcquaintanceForm((prev) => ({ ...prev, phone: event.target.value }))
-                    }
-                    placeholder="+998..."
-                    required
-                  />
-                </label>
-              </div>
-
-              <button type="submit" className="primary-btn wide-btn">
-                Yuborish
+                <span className="sms-icon" aria-hidden="true">💬</span>
+                <span className="sms-btn-label">Chat</span>
+                {pendingAcquaintances.length > 0 && (
+                  <span className="sms-badge-count">{pendingAcquaintances.length}</span>
+                )}
               </button>
-              {acquaintanceError && <p className="login-error">Xato: {acquaintanceError}</p>}
-            </form>
-          </section>
 
-          <section id="donate" className="donate-section">
-            <div className="donate-intro">
-              <div>
-                <p className="section-label">06 / DONATE XIZMATI</p>
-                <h2>Sevimli o‘yiningizni yanada qiziqarli qiling.</h2>
-              </div>
-              <p>
-                Sizga istalgan o‘yinga donate xizmati mavjud. Tez, qulay va ishonchli yordam kerak bo‘lsa,
-                men bilan bog‘laning.
-              </p>
-            </div>
+              <button
+                type="button"
+                className="menu-toggle"
+                aria-label="Menyuni ochish"
+                aria-expanded={isSidebarOpen}
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <span />
+                <span />
+                <span />
+              </button>
 
-            <div className="donate-grid">
-              <article className="donate-card donate-card-main">
-                <span className="donate-number">01</span>
-                <div>
-                  <span className="donate-icon" aria-hidden="true">✦</span>
-                  <h3>Istalgan o‘yinga</h3>
-                  <p>Sevimli o‘yiningiz uchun kerakli donate xizmatini topamiz.</p>
-                </div>
-              </article>
-              <article className="donate-card donate-card-fast">
-                <span className="donate-number">02</span>
-                <div>
-                  <span className="donate-icon" aria-hidden="true">↗</span>
-                  <h3>Tezkor xizmat</h3>
-                  <p>Buyurtmangizni ortiqcha kutishlarsiz ko‘rib chiqamiz.</p>
-                </div>
-              </article>
-              <article className="donate-card donate-card-trust">
-                <span className="donate-number">03</span>
-                <div>
-                  <span className="donate-icon" aria-hidden="true">♥</span>
-                  <h3>Sizning tanlovingiz</h3>
-                  <p>O‘yin, server va kerakli paketni ayting, mos variantni birga tanlaymiz.</p>
-                </div>
-              </article>
-            </div>
-
-            <div className="donate-details">
-              <div>
-                <span className="section-label">QANDAY BUYURTMA BERILADI?</span>
-                <ol className="donate-steps">
-                  <li><strong>O‘yinni ayting</strong><span>O‘yin nomi va serveringizni yuboring.</span></li>
-                  <li><strong>Paketni tanlang</strong><span>Kerakli donate miqdorini birga aniqlaymiz.</span></li>
-                  <li><strong>Natijani kuting</strong><span>Buyurtma holati haqida Telegram’da xabar olasiz.</span></li>
-                </ol>
-              </div>
-              <div className="donate-requirements">
-                <span className="section-label">KERAK BO‘LADIGAN MA’LUMOTLAR</span>
-                <p>O‘yin nomi, player ID, server va paket nomi kifoya. Hech qachon akkaunt parolingizni yubormang.</p>
-              </div>
-            </div>
-
-            <a href="#contact" className="primary-btn donate-cta">
-              Donate kerakmi? Men bilan bog‘laning <span aria-hidden="true">→</span>
-            </a>
-          </section>
-
-          <section className="info-section reviews-section">
-            <div className="section-title-wrap reviews-heading">
-              <div>
-                <p className="section-label">07 / FOYDALANUVCHILAR FIKRI</p>
-                <h2>Men haqimda nima deyishadi?</h2>
-              </div>
-              <button type="button" className="secondary-btn" onClick={() => setShowAlert(true)}>
-                Fikr qoldirish <span aria-hidden="true">★</span>
+              <button type="button" className="role-toggle" onClick={handleAdminButtonClick}>
+                {isAdminLoggedIn ? 'Super admin' : 'Login'}
               </button>
             </div>
+          </header>
 
-            {reviews.length === 0 ? (
-              <div className="reviews-empty">
-                <p>Hali fikrlar yo‘q. Birinchi bo‘lib fikringizni qoldiring.</p>
-                <button type="button" className="primary-btn" onClick={() => setShowAlert(true)}>
-                  Fikr qoldirish
-                </button>
-              </div>
-            ) : (
-              <div className="public-review-grid">
-                {reviews.map((review) => (
-                  <article key={review.id} className="public-review-card">
-                    <div className="public-review-top">
-                      <strong>{review.name || 'Foydalanuvchi'}</strong>
-                      <span className="review-stars" aria-label={`${review.rating} yulduz`}>
-                        {'★'.repeat(review.rating)}
-                      </span>
-                    </div>
-                    <p>{review.comment}</p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section id="contact" className="footer-contact">
-            <div>
-              <p className="section-label">05 / BOG’LANISH</p>
-              <h2>Men bilan bog’laning</h2>
+          <div
+            className={`sidebar-backdrop${isSidebarOpen ? ' is-visible' : ''}`}
+            aria-hidden="true"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <aside className={`sidebar${isSidebarOpen ? ' is-open' : ''}`} aria-label="Asosiy menyu">
+            <div className="sidebar-header">
+              <span className="section-label">Menyu</span>
+              <button type="button" className="sidebar-close" aria-label="Menyuni yopish" onClick={() => setIsSidebarOpen(false)}>
+                ×
+              </button>
             </div>
+            <nav className="sidebar-nav">
+              <a href="#home" onClick={(event) => { event.preventDefault(); handlePageClick('home'); }}>Bosh sahifa</a>
+              <a href="#projects" onClick={(event) => { event.preventDefault(); handlePageClick('projects'); }}>Loyihalar</a>
+              <a href="#services" onClick={(event) => { event.preventDefault(); handlePageClick('services'); }}>Xizmatlar</a>
+              <a href="#friends" onClick={(event) => { event.preventDefault(); handlePageClick('friends'); }}>Dostlar</a>
+              <a href="#contact" onClick={(event) => { event.preventDefault(); handlePageClick('contact'); }}>Bog’lanish</a>
+            </nav>
 
-            <div className="social-links">
-              <a className="telegram-link" href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
-                Telegram
-              </a>
-              <a href={profile.socialLinks.instagram} target="_blank" rel="noreferrer">
-                Instagram
-              </a>
-              <a href={profile.socialLinks.youtube} target="_blank" rel="noreferrer">
-                YouTube
-              </a>
+            <div className="sidebar-bottom-actions">
+              <button
+                type="button"
+                className="sms-toggle-btn sidebar-sms-btn"
+                onClick={() => {
+                  setIsSidebarOpen(false);
+                  openChatModal();
+                }}
+              >
+                <span className="sms-icon" aria-hidden="true">💬</span>
+                <span>Chat qutisi</span>
+                {pendingAcquaintances.length > 0 && (
+                  <span className="sms-badge-count">{pendingAcquaintances.length}</span>
+                )}
+              </button>
+
+              <button type="button" className="role-toggle sidebar-login" onClick={handleAdminButtonClick}>
+                {isAdminLoggedIn ? 'Super admin' : 'Login'}
+              </button>
             </div>
-          </section>
-        </main>
-      ) : (
-        <main className="admin-panel">
-          <section className="admin-header">
-            <div>
-              <p className="section-label">SUPER ADMIN</p>
-              <h2>Admin panel</h2>
-            </div>
-            <button
-              type="button"
-              className="role-toggle dull"
-              onClick={() => {
-                logoutAdmin();
-                setRole('people');
-                setIsAdminLoggedIn(false);
-                setShowLogin(false);
-              }}
-            >
-              Chiqish
-            </button>
-          </section>
-
-          <section className="admin-card analytics-card">
-            <div className="analytics-heading">
-              <div>
-                <p className="section-label">TASHRIFLAR STATISTIKASI</p>
-                <h3>Oylik tashrifchilar</h3>
-              </div>
-              <span className="analytics-note">Anonim noyob brauzerlar</span>
-            </div>
-            {visitorStats.length === 0 ? (
-              <p className="empty-message">Hali statistika yig‘ilmadi yoki jadval sozlanmagan.</p>
-            ) : (
-              <div className="analytics-list">
-                {visitorStats.map((stat) => {
-                  const maximum = Math.max(...visitorStats.map((item) => Number(item.unique_visitors) || 0), 1);
-                  const visitors = Number(stat.unique_visitors) || 0;
-                  const monthLabel = new Date(`${stat.month}T00:00:00`).toLocaleDateString('uz-UZ', {
-                    month: 'long',
-                    year: 'numeric',
-                  });
-
-                  return (
-                    <div key={stat.month} className="analytics-row">
-                      <span className="analytics-month">{monthLabel}</span>
-                      <div className="analytics-bar-track" aria-hidden="true">
-                        <span className="analytics-bar" style={{ width: `${Math.max((visitors / maximum) * 100, 3)}%` }} />
-                      </div>
-                      <strong>{visitors}</strong>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <div className="admin-grid">
-            <section className="admin-card">
-              <h3>Dost qo’shish</h3>
-              <form onSubmit={addFriend} className="admin-form">
-                <label>
-                  Ism
-                  <input
-                    type="text"
-                    value={friendForm.name}
-                    onChange={(event) => setFriendForm((prev) => ({ ...prev, name: event.target.value }))}
-                    placeholder="Do’stning ismi"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Aloqa turi
-                  <select
-                    value={friendForm.relation}
-                    onChange={(event) => setFriendForm((prev) => ({ ...prev, relation: event.target.value }))}
-                  >
-                    <option value="Do’st">Do’st</option>
-                    <option value="Tanish">Tanish</option>
-                    <option value="Yaqin do’st">Yaqin do’st</option>
-                  </select>
-                </label>
-
-                <label>
-                  Izoh
-                  <textarea
-                    value={friendForm.note}
-                    onChange={(event) => setFriendForm((prev) => ({ ...prev, note: event.target.value }))}
-                    placeholder="Qisqa izoh..."
-                  />
-                </label>
-
-                <button type="submit" className="primary-btn wide-btn">
-                  Qo’shish
-                </button>
-              </form>
-            </section>
-
-            <section className="admin-card">
-              <h3>Tanishlar ro’yxati</h3>
-
-              {pendingAcquaintances.length === 0 ? (
-                <p className="empty-message">Hozircha yangi tanishlar yo’q.</p>
-              ) : (
-                pendingAcquaintances.map((item) => (
-                  <div key={item.id} className="request-card">
-                    <div>
-                      <strong>
-                        {item.firstName} {item.lastName}
-                      </strong>
-                      <p>
-                        {item.age || 'Yosh nomalum'} yosh • {item.phone}
-                      </p>
-                    </div>
-                    <div className="request-actions">
-                      <button type="button" onClick={() => approveOneAcquaintance(item.id)}>
-                        Tasdiqlash
-                      </button>
-                      <button type="button" onClick={() => addAcquaintanceAsFriend(item)}>
-                        Do’stga qo’shish
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-btn"
-                        onClick={() => removeAcquaintance(item.id)}
-                      >
-                        Bekor qilish
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </section>
-          </div>
-
-          <section className="admin-card approved-card">
-            <h3>Baholar va izohlar</h3>
-            {reviews.length === 0 ? (
-              <p className="empty-message">Hozircha izohlar yo‘q.</p>
-            ) : (
-              <div className="review-list">
-                {reviews.map((review) => (
-                  <article key={review.id} className="review-card">
-                    <div>
-                      <strong>{review.name || 'Noma’lum'}</strong>
-                      <div className="review-stars" aria-label={`${review.rating} yulduz`}>{'★'.repeat(review.rating)}</div>
-                      <p>{review.comment}</p>
-                      <small>{new Date(review.created_at).toLocaleString('uz-UZ')}</small>
-                    </div>
-                    <button type="button" className="danger-btn" onClick={() => removeReview(review.id)}>
-                      Delete
-                    </button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="admin-card approved-card">
-            <h3>Approved tanishlar</h3>
-            <div className="card-grid admin-card-grid">
-              {approvedAcquaintances.length === 0 ? (
-                <p className="empty-message">Hozircha hech kim yo‘q.</p>
-              ) : (
-                approvedAcquaintances.map((item) => (
-                  <article key={item.id} className="person-card admin-person-card">
-                    {editingAcquaintanceId === item.id ? (
-                      <div className="inline-edit-form">
-                        <input
-                          type="text"
-                          value={acquaintanceDraft.firstName}
-                          onChange={(event) =>
-                            setAcquaintanceDraft((prev) => ({ ...prev, firstName: event.target.value }))
-                          }
-                        />
-                        <input
-                          type="text"
-                          value={acquaintanceDraft.lastName}
-                          onChange={(event) =>
-                            setAcquaintanceDraft((prev) => ({ ...prev, lastName: event.target.value }))
-                          }
-                        />
-                        <input
-                          type="number"
-                          value={acquaintanceDraft.age}
-                          onChange={(event) =>
-                            setAcquaintanceDraft((prev) => ({ ...prev, age: event.target.value }))
-                          }
-                        />
-                        <input
-                          type="tel"
-                          value={acquaintanceDraft.phone}
-                          onChange={(event) =>
-                            setAcquaintanceDraft((prev) => ({ ...prev, phone: event.target.value }))
-                          }
-                        />
-                        <div className="inline-actions">
-                          <button type="button" onClick={() => saveAcquaintanceEdit(item.id)}>
-                            Saqlash
-                          </button>
-                          <button type="button" className="danger-btn" onClick={() => setEditingAcquaintanceId(null)}>
-                            Bekor qilish
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="person-avatar">{item.firstName.charAt(0)}</div>
-                        <div>
-                          <h3>
-                            {item.firstName} {item.lastName}
-                          </h3>
-                          <p className="role-tag">Approved</p>
-                          <small>
-                            {item.age} yosh • {item.phone}
-                          </small>
-                        </div>
-                        <div className="card-actions">
-                          <button type="button" onClick={() => startEditingAcquaintance(item)}>
-                            Edit
-                          </button>
-                          <button type="button" className="danger-btn" onClick={() => removeAcquaintance(item.id)}>
-                            Delete
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="admin-card approved-card">
-            <h3>Dostlar ro’yxati</h3>
-            <div className="card-grid admin-card-grid">
-              {friends.length === 0 ? (
-                <p className="empty-message">Hozircha hech kim yo‘q.</p>
-              ) : (
-                friends.map((friend) => (
-                  <article key={friend.id} className="person-card admin-person-card">
-                    {editingFriendId === friend.id ? (
-                      <div className="inline-edit-form">
-                        <input
-                          type="text"
-                          value={friendDraft.name}
-                          onChange={(event) => setFriendDraft((prev) => ({ ...prev, name: event.target.value }))}
-                        />
-                        <select
-                          value={friendDraft.relation}
-                          onChange={(event) =>
-                            setFriendDraft((prev) => ({ ...prev, relation: event.target.value }))
-                          }
-                        >
-                          <option value="Do’st">Do’st</option>
-                          <option value="Tanish">Tanish</option>
-                          <option value="Yaqin do’st">Yaqin do’st</option>
-                        </select>
-                        <textarea
-                          value={friendDraft.note}
-                          onChange={(event) => setFriendDraft((prev) => ({ ...prev, note: event.target.value }))}
-                        />
-                        <div className="inline-actions">
-                          <button type="button" onClick={() => saveFriendEdit(friend.id)}>
-                            Saqlash
-                          </button>
-                          <button type="button" className="danger-btn" onClick={() => setEditingFriendId(null)}>
-                            Bekor qilish
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="person-avatar">{friend.name.charAt(0)}</div>
-                        <div>
-                          <h3>{friend.name}</h3>
-                          <p className="role-tag">{friend.relation}</p>
-                          <small>{friend.note}</small>
-                        </div>
-                        <div className="card-actions">
-                          <button type="button" onClick={() => startEditingFriend(friend)}>
-                            Edit
-                          </button>
-                          <button type="button" className="danger-btn" onClick={() => removeFriend(friend.id)}>
-                            Delete
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
-        </main>
+          </aside>
+        </>
       )}
 
-      <button type="button" className="feedback-trigger" onClick={() => setShowAlert(true)}>
-        <span className="feedback-icon" aria-hidden="true">★</span>
-        <span>MyWeb ni baholang</span>
-      </button>
+      {role === 'people' ? (
+        <main>{renderPublicPage()}</main>
+      ) : (
+        <AdminPage
+          visitorStats={visitorStats}
+          addFriend={addFriend}
+          friendForm={friendForm}
+          setFriendForm={setFriendForm}
+          pendingAcquaintances={pendingAcquaintances}
+          approveOneAcquaintance={approveOneAcquaintance}
+          addAcquaintanceAsFriend={addAcquaintanceAsFriend}
+          removeAcquaintance={removeAcquaintance}
+          reviews={reviews}
+          removeReview={removeReview}
+          approvedAcquaintances={approvedAcquaintances}
+          parseAcquaintance={parseAcquaintance}
+          editingAcquaintanceId={editingAcquaintanceId}
+          setEditingAcquaintanceId={setEditingAcquaintanceId}
+          acquaintanceDraft={acquaintanceDraft}
+          setAcquaintanceDraft={setAcquaintanceDraft}
+          saveAcquaintanceEdit={saveAcquaintanceEdit}
+          startEditingAcquaintance={startEditingAcquaintance}
+          editingFriendId={editingFriendId}
+          setEditingFriendId={setEditingFriendId}
+          friendDraft={friendDraft}
+          setFriendDraft={setFriendDraft}
+          saveFriendEdit={saveFriendEdit}
+          startEditingFriend={startEditingFriend}
+          removeFriend={removeFriend}
+          friends={friends}
+          setShowSmsModal={setShowSmsModal}
+          logoutAdmin={logoutAdmin}
+          setRole={setRole}
+          setIsAdminLoggedIn={setIsAdminLoggedIn}
+          setShowLogin={setShowLogin}
+        />
+      )}
+
+      {!isAdminDashboard && (
+        <button type="button" className="feedback-trigger" onClick={() => setShowAlert(true)}>
+          <span className="feedback-icon" aria-hidden="true">★</span>
+          <span>MyWeb ni baholang</span>
+        </button>
+      )}
 
       {showAcquaintanceSuccess && (
         <div className="success-toast" role="status">
@@ -1214,21 +1112,44 @@ function App() {
         <div className="login-backdrop" onClick={() => setShowAlert(false)}>
           <form className="review-modal" onSubmit={handleReviewSubmit} onClick={(event) => event.stopPropagation()}>
             <button type="button" className="close-btn login-close" onClick={() => setShowAlert(false)}>
-            ×
+              ×
             </button>
             <p className="section-label">MyWeb</p>
             <h2>Baholang</h2>
-            <label>
-              Ismingiz
-              <input
-                type="text"
-                value={reviewForm.name}
-                onChange={(event) => setReviewForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Ismingizni kiriting"
-                maxLength="80"
-                required
-              />
-            </label>
+            <div className="field-row two-cols">
+              <label>
+                Ismingiz
+                <input
+                  type="text"
+                  value={reviewForm.name}
+                  onChange={(event) => {
+                    const val = event.target.value;
+                    setReviewForm((prev) => ({ ...prev, name: val }));
+                    localStorage.setItem('myweb-user-name', val);
+                  }}
+                  placeholder="Ismingizni kiriting"
+                  maxLength="80"
+                  required
+                />
+              </label>
+              <label>
+                Instagram (avtomatik)
+                <div className="input-with-prefix">
+                  <span className="input-prefix" aria-hidden="true">@</span>
+                  <input
+                    type="text"
+                    value={reviewForm.instagram}
+                    onChange={(event) => {
+                      const clean = event.target.value.replace(/^@/, '').trim();
+                      setReviewForm((prev) => ({ ...prev, instagram: clean }));
+                      localStorage.setItem('myweb-user-instagram', clean);
+                      setAcquaintanceForm((prev) => ({ ...prev, instagram: clean }));
+                    }}
+                    placeholder="username"
+                  />
+                </div>
+              </label>
+            </div>
             <div className="rating-input" role="radiogroup" aria-label="Yulduzli baho">
               {[1, 2, 3, 4, 5].map((rating) => (
                 <button
@@ -1299,6 +1220,306 @@ function App() {
               Admin panelga kirish
             </button>
           </form>
+        </div>
+      )}
+
+      {newSmsNotification && (
+        <aside className="sms-incoming-banner" role="alert">
+          <div className="sms-banner-header">
+            <span className="sms-banner-icon" aria-hidden="true">💬</span>
+            <span className="sms-banner-title">Yangi chat xabari (Tanishuv)</span>
+            <button type="button" className="sms-banner-close" aria-label="Yopish" onClick={() => setNewSmsNotification(null)}>
+              ×
+            </button>
+          </div>
+          <div className="sms-banner-body">
+            <p>
+              <strong>{newSmsNotification.sender}</strong>
+              {newSmsNotification.instagram && (
+                <span className="sms-banner-ig"> (@{newSmsNotification.instagram})</span>
+              )}{' '}
+              siz bilan tanishmoqchi!
+            </p>
+            <div className="sms-banner-meta">
+              <span>📞 {newSmsNotification.phone}</span>
+              {newSmsNotification.age ? <span> • {newSmsNotification.age} yosh</span> : null}
+            </div>
+          </div>
+          <div className="sms-banner-actions">
+            {newSmsNotification.id && (
+              <button
+                type="button"
+                className="sms-banner-btn-approve"
+                onClick={() => {
+                  void approveOneAcquaintance(newSmsNotification.id);
+                  setNewSmsNotification(null);
+                }}
+              >
+                Tasdiqlash ✓
+              </button>
+            )}
+            <button
+              type="button"
+              className="sms-banner-btn-open"
+              onClick={() => {
+                setNewSmsNotification(null);
+                openChatModal();
+              }}
+            >
+              Chatni ochish ↗
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {showChatJoin && (
+        <div className="login-backdrop" onClick={() => setShowChatJoin(false)}>
+          <form className="chat-join-card" onSubmit={handleChatJoinSubmit} onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="close-btn login-close" onClick={() => setShowChatJoin(false)}>
+              ×
+            </button>
+            <p className="section-label">Live chat</p>
+            <h2>Chatga kirish</h2>
+            <p className="chat-join-description">Umumiy suhbatga qo‘shilish uchun Instagram nomingizni kiriting.</p>
+            <label>
+              Instagram username
+              <input
+                type="text"
+                value={chatJoinForm.instagram}
+                onChange={(event) => setChatJoinForm((prev) => ({ ...prev, instagram: event.target.value }))}
+                placeholder="@username"
+                autoFocus
+                required
+                maxLength={30}
+              />
+            </label>
+            <label>
+              Telefon raqam (ixtiyoriy)
+              <input
+                type="tel"
+                value={chatJoinForm.phone}
+                onChange={(event) => setChatJoinForm((prev) => ({ ...prev, phone: event.target.value }))}
+                placeholder="+998 xx xxx xx xx"
+              />
+            </label>
+            <button type="submit" className="primary-btn wide-btn login-submit">
+              Chatga kirish
+            </button>
+          </form>
+        </div>
+      )}
+
+      {showSmsModal && (
+        <div className="login-backdrop" onClick={() => setShowSmsModal(false)}>
+          <div className="sms-inbox-modal telegram-chat-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sms-inbox-header chat-room-header">
+              <div className="chat-room-avatar" aria-hidden="true">💬</div>
+              <div className="sms-inbox-title-wrap chat-room-title">
+                <h2>MyWeb chat</h2>
+                <div className="chat-room-status">
+                  <span className={`chat-connection-dot ${chatConnectionStatus === 'SUBSCRIBED' ? 'is-connected' : ''}`} />
+                    <span>{chatConnectionStatus === 'SUBSCRIBED' ? 'Real-time ulangan' : 'Ulanmoqda...'}</span>
+                  <span className="chat-status-divider">·</span>
+                  <span>{chatOnlineUsers.length} online</span>
+                </div>
+              </div>
+              <div className="chat-room-actions">
+                <span className="chat-identity-chip" title="Chatdagi Instagram profilingiz">
+                  @{(chatJoinForm.instagram || localStorage.getItem('myweb-chat-instagram') || localStorage.getItem('myweb-user-instagram') || 'guest').replace(/^@/, '')}
+                </span>
+              </div>
+              <button type="button" className="close-btn" aria-label="Yopish" onClick={() => setShowSmsModal(false)}>
+                ×
+              </button>
+            </div>
+
+            <div className="chat-mode-tabs" role="tablist" aria-label="Chat turi">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isVideoChatOpen}
+                className={`chat-mode-tab${isVideoChatOpen ? '' : ' is-active'}`}
+                onClick={() => setIsVideoChatOpen(false)}
+              >
+                💬 Matnli chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isVideoChatOpen}
+                className={`chat-mode-tab${isVideoChatOpen ? ' is-active' : ''}`}
+                onClick={() => setIsVideoChatOpen(true)}
+              >
+                🎥 Live chat
+              </button>
+            </div>
+
+            {isVideoChatOpen ? (
+              <LiveVideoRoom
+                instagram={(chatJoinForm.instagram || localStorage.getItem('myweb-chat-instagram') || localStorage.getItem('myweb-user-instagram') || 'guest').replace(/^@/, '').trim()}
+              />
+            ) : (
+            <div className="global-chat-wrap">
+              <div className="global-chat-body" role="log" aria-live="polite" aria-label="Umumiy chat xabarlari">
+                {chatLoading && globalChatMessages.length === 0 ? (
+                  <div className="chat-state-card">
+                    <span className="chat-loading-spinner" />
+                    <p>Xabarlar yuklanmoqda...</p>
+                  </div>
+                ) : chatError && globalChatMessages.length === 0 ? (
+                  <div className="chat-state-card">
+                    <span className="chat-state-icon" aria-hidden="true">!</span>
+                    <p>{chatError}</p>
+                    <button type="button" onClick={() => void loadGlobalChatMessages()}>Qayta urinish</button>
+                  </div>
+                ) : globalChatMessages.length === 0 ? (
+                  <div className="global-chat-empty">
+                    <span className="chat-empty-icon" aria-hidden="true">✦</span>
+                    <p>Hali suhbat boshlanmadi</p>
+                    <span>Salom deb yozing — boshqalar ham shu yerda ko‘radi.</span>
+                  </div>
+                ) : (
+                  globalChatMessages.map((message, index) => {
+                    const messageDate = new Date(message.createdAt || Date.now());
+                    const previousMessageDate = index > 0
+                      ? new Date(globalChatMessages[index - 1].createdAt || Date.now())
+                      : null;
+                    const dayLabel = messageDate.toLocaleDateString([], {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    });
+                    const showDayLabel = !previousMessageDate
+                      || messageDate.toDateString() !== previousMessageDate.toDateString();
+
+                    return (
+                      <div key={message.id}>
+                        {showDayLabel && <div className="chat-day-divider"><span>{dayLabel}</span></div>}
+                        <div className={`global-chat-row ${message.mine ? 'mine' : ''}`}>
+                          {!message.mine && (
+                            <span className="chat-message-avatar" aria-hidden="true">
+                              {(message.instagram || message.sender || '?').replace(/^@/, '').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <div className="global-chat-bubble">
+                            <strong className="chat-message-sender">
+                              {message.mine ? 'Siz' : `@${(message.instagram || message.sender || 'guest').replace(/^@/, '')}`}
+                            </strong>
+                            <p>{message.text}</p>
+                            <span className="chat-message-time">
+                              {message.time}
+                              {message.mine && <span className="chat-message-check" aria-label="Yuborildi">✓✓</span>}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                {chatTypingUsers.length > 0 && (
+                  <div className="chat-typing-row" aria-live="polite">
+                    <span className="chat-typing-dots"><i /><i /><i /></span>
+                    <span>
+                      {chatTypingUsers.map((user) => `@${user.instagram || 'foydalanuvchi'}`).join(', ')}
+                      {chatTypingUsers.length === 1 ? ' yozmoqda...' : ' yozishyapti...'}
+                    </span>
+                  </div>
+                )}
+                <div ref={globalChatEndRef} />
+              </div>
+
+              <div className="global-chat-input-row">
+                <input
+                  type="text"
+                  value={chatDraft}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setChatDraft(value);
+                    broadcastChatTyping(Boolean(value.trim()));
+                    if (chatTypingTimerRef.current) window.clearTimeout(chatTypingTimerRef.current);
+                    if (value.trim()) {
+                      chatTypingTimerRef.current = window.setTimeout(() => {
+                        broadcastChatTyping(false);
+                      }, 2000);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void sendLiveChatMessage();
+                    }
+                  }}
+                  placeholder="Xabaringizni yozing..."
+                  aria-label="Xabar yozing"
+                  maxLength={2000}
+                />
+                <button
+                  type="button"
+                  className="primary-btn chat-send-btn"
+                  onClick={() => void sendLiveChatMessage()}
+                  disabled={!chatDraft.trim() || chatSending}
+                  aria-label={chatSending ? 'Xabar yuborilmoqda' : 'Xabar yuborish'}
+                >
+                  {chatSending ? 'Yuborilmoqda...' : 'Yuborish'}
+                </button>
+              </div>
+              {chatError && globalChatMessages.length > 0 && <p className="chat-inline-error" role="alert">{chatError}</p>}
+              <div className="chat-footer-note">Hurmat bilan yozing · xabarlar hammaga ko‘rinadi</div>
+            </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showApprovedModal && (
+        <div
+          className="login-backdrop"
+          onClick={() => {
+            setShowApprovedModal(false);
+            localStorage.setItem('myweb-request-approved-seen', 'true');
+          }}
+        >
+          <div className="approved-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="approved-sparkle-icon" aria-hidden="true">🎉</div>
+            <p className="section-label">Ajoyib xushxabar!</p>
+            <h2>So‘rovingiz tasdiqlandi!</h2>
+            <p className="approved-modal-text">
+              Endi o‘zingizni Tanishlar bo‘limida ko‘rishingiz mumkin.
+            </p>
+
+            {approvedUserNotice && (
+              <div className="approved-preview-chip">
+                <div className="person-avatar">{approvedUserNotice.firstName?.charAt(0) || '✓'}</div>
+                <div>
+                  <strong>{approvedUserNotice.firstName} {approvedUserNotice.lastName}</strong>
+                  <span className="role-tag approved-green-tag">Tasdiqlangan tanish ✓</span>
+                </div>
+              </div>
+            )}
+
+            <div className="approved-modal-buttons">
+              <a
+                href="#friends"
+                className="primary-btn wide-btn"
+                onClick={() => {
+                  setShowApprovedModal(false);
+                  localStorage.setItem('myweb-request-approved-seen', 'true');
+                }}
+              >
+                Tanishlar ro‘yxatida ko‘rish →
+              </a>
+              <button
+                type="button"
+                className="secondary-btn wide-btn"
+                onClick={() => {
+                  setShowApprovedModal(false);
+                  localStorage.setItem('myweb-request-approved-seen', 'true');
+                }}
+              >
+                Rahmat, tushundim
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -27,6 +27,8 @@ VITE_SUPABASE_ANON_KEY=sizning-publishable-key
 
 Keyin Vercel’da redeploy qiling. So‘rovlar Supabase’ga tushadi va tasdiqlangan tanishlar barcha qurilmalarda ko‘rinadi.
 
+Chatdagi **Live chat** tugmasi bir nechta foydalanuvchi uchun jonli video va ovozli suhbatni ochadi. Barcha ishtirokchilar bir xil saytga kirib, o‘z Instagram username’ini kiritishi va Live chat xonasiga qo‘shilishi kerak. Kamera hamda mikrofon faqat **Live chatni boshlash** tugmasi bosilganda so‘raladi. Brauzerda kamera/mikrofon ruxsatini bering; production’da sayt HTTPS orqali ochilishi kerak (localhost bundan mustasno). Jonli suhbat Supabase Realtime’dan signal almashish uchun foydalanadi.
+
 Lokal backend (`server/server.js`) eski development rejimi uchun qoldirilgan.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
