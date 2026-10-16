@@ -55,6 +55,11 @@ export default function LiveVideoRoom({ instagram }) {
   const [remoteStreams, setRemoteStreams] = useState([]);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
+  const [facingMode, setFacingMode] = useState('user');
+  const localStreamRef = useRef(null);
+  const peerConnectionsRef = useRef(new Map());
+  const switchingCameraRef = useRef(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -81,9 +86,11 @@ export default function LiveVideoRoom({ instagram }) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
+      localStreamRef.current = stream;
       setLocalStream(stream);
       setIsMicEnabled(true);
       setIsCameraEnabled(true);
+      setFacingMode('user');
       setIsInRoom(true);
       setRoomStatus('Xonaga ulanmoqda...');
     } catch (mediaError) {
@@ -95,10 +102,11 @@ export default function LiveVideoRoom({ instagram }) {
   };
 
   useEffect(() => {
-    if (!isInRoom || !localStream) return undefined;
+    if (!isInRoom || !localStreamRef.current) return undefined;
 
     let isDisposed = false;
     const peerConnections = new Map();
+    peerConnectionsRef.current = peerConnections;
     const pendingCandidates = new Map();
     const startedOffers = new Set();
     const channel = supabase.channel('myweb-live-video-room', {
@@ -156,7 +164,8 @@ export default function LiveVideoRoom({ instagram }) {
 
       const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       peerConnections.set(peerId, connection);
-      localStream.getTracks().forEach((track) => connection.addTrack(track, localStream));
+      const currentStream = localStreamRef.current;
+      currentStream.getTracks().forEach((track) => connection.addTrack(track, currentStream));
       connection.ontrack = (event) => {
         updateRemoteStream(peerId, peerInstagram, event.streams[0] || new MediaStream([event.track]));
       };
@@ -292,26 +301,87 @@ export default function LiveVideoRoom({ instagram }) {
         connection.close();
       });
       peerConnections.clear();
-      localStream.getTracks().forEach((track) => track.stop());
+      if (peerConnectionsRef.current === peerConnections) peerConnectionsRef.current = new Map();
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [instagram, isInRoom, localStream, sessionId]);
+  }, [instagram, isInRoom, sessionId]);
 
   const toggleMic = useCallback(() => {
     const nextEnabled = !isMicEnabled;
-    localStream?.getAudioTracks().forEach((track) => {
+    localStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = nextEnabled;
     });
     setIsMicEnabled(nextEnabled);
-  }, [isMicEnabled, localStream]);
+  }, [isMicEnabled]);
 
   const toggleCamera = useCallback(() => {
     const nextEnabled = !isCameraEnabled;
-    localStream?.getVideoTracks().forEach((track) => {
+    localStreamRef.current?.getVideoTracks().forEach((track) => {
       track.enabled = nextEnabled;
     });
     setIsCameraEnabled(nextEnabled);
-  }, [isCameraEnabled, localStream]);
+  }, [isCameraEnabled]);
+
+  const switchCamera = async () => {
+    if (!localStreamRef.current || switchingCameraRef.current) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(getMediaErrorMessage());
+      return;
+    }
+
+    switchingCameraRef.current = true;
+    setIsSwitchingCamera(true);
+    setError('');
+    const nextFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    let nextVideoTrack;
+    const replacedSenders = [];
+    const currentStream = localStreamRef.current;
+    const currentVideoTrack = currentStream?.getVideoTracks()[0];
+
+    try {
+      if (!currentVideoTrack) throw new Error('The current video track is unavailable.');
+
+      const cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { exact: nextFacingMode } },
+      });
+      nextVideoTrack = cameraStream.getVideoTracks()[0];
+      if (!nextVideoTrack) throw new Error('The selected camera did not provide a video track.');
+      nextVideoTrack.enabled = isCameraEnabled;
+
+      for (const connection of peerConnectionsRef.current.values()) {
+        const videoSender = connection.getSenders().find((sender) => sender.track?.kind === 'video');
+        if (!videoSender) continue;
+        await videoSender.replaceTrack(nextVideoTrack);
+        replacedSenders.push(videoSender);
+      }
+
+      currentStream.removeTrack(currentVideoTrack);
+      currentVideoTrack.stop();
+      const updatedStream = new MediaStream([...currentStream.getAudioTracks(), nextVideoTrack]);
+      localStreamRef.current = updatedStream;
+      setLocalStream(updatedStream);
+      setFacingMode(nextFacingMode);
+    } catch (cameraError) {
+      if (nextVideoTrack) {
+        await Promise.allSettled(replacedSenders.map((sender) => sender.replaceTrack(currentVideoTrack)));
+        nextVideoTrack.stop();
+      }
+      console.error('Live video camera switch failed:', cameraError);
+      if (cameraError?.name === 'OverconstrainedError' || cameraError?.name === 'NotFoundError') {
+        setError(nextFacingMode === 'environment'
+          ? 'Orqa kamera topilmadi; qurilmangizdagi mavjud kameralarni tekshiring.'
+          : 'Old kamera topilmadi; qurilmangizdagi mavjud kameralarni tekshiring.');
+      } else {
+        setError('Kamera almashtirilmadi. Brauzerda ikkinchi kameraga ruxsat borligini tekshiring.');
+      }
+    } finally {
+      switchingCameraRef.current = false;
+      setIsSwitchingCamera(false);
+    }
+  };
 
   const leaveRoom = () => {
     setRoomStatus('Xonadan chiqildi');
@@ -369,6 +439,9 @@ export default function LiveVideoRoom({ instagram }) {
             </button>
             <button type="button" className={isCameraEnabled ? '' : 'is-muted'} onClick={toggleCamera}>
               {isCameraEnabled ? '📷 Kamerani o‘chirish' : '📷 Kamerani yoqish'}
+            </button>
+            <button type="button" onClick={() => void switchCamera()} disabled={isSwitchingCamera}>
+              {isSwitchingCamera ? '🔄 Almashtirilmoqda...' : '🔄 Kamerani almashtirish'}
             </button>
             <button type="button" className="live-video-leave" onClick={leaveRoom}>
               Suhbatni tugatish
