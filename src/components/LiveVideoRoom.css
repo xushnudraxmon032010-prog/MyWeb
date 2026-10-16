@@ -16,7 +16,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   gap: 12px;
+}
+
+.live-video-room-heading > div {
+  min-width: 0;
 }
 
 .live-video-room-heading h3 {
@@ -57,9 +62,10 @@
   display: grid;
   flex: 1;
   min-height: 260px;
+  min-width: 0;
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   align-content: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .live-video-tile,
@@ -194,13 +200,18 @@
 }
 
 .live-video-controls .live-video-leave {
-  border-color: #b42318;
-  background: #b42318;
+  border: 1px solid #991b1b;
+  background: #b91c1c;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(153, 27, 27, 0.2);
 }
 
-.live-video-controls .live-video-leave:hover {
-  background: #901b13;
+.live-video-controls .live-video-leave:hover,
+.live-video-controls .live-video-leave:focus-visible {
+  border-color: #7f1d1d;
+  background: #991b1b;
+  color: #fff;
+  box-shadow: 0 7px 16px rgba(127, 29, 29, 0.28);
 }
 
 .live-video-start-panel {
@@ -272,13 +283,15 @@
 
   .live-video-grid {
     min-height: 0;
-    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
-    gap: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
   }
 
   .live-video-tile,
   .live-video-waiting {
-    min-height: 145px;
+    width: 100%;
+    min-height: 190px;
+    aspect-ratio: 16 / 9;
     border-radius: 14px;
   }
 
@@ -290,13 +303,28 @@
 
   .live-video-controls button {
     min-width: 0;
-    min-height: 44px;
-    padding: 8px;
-    font-size: 0.75rem;
+    min-height: 48px;
+    padding: 9px 8px;
+    font-size: 0.78rem;
+    line-height: 1.25;
   }
 
-  .live-video-controls .live-video-leave {
+  .live-video-controls button.live-video-leave {
     grid-column: 1 / -1;
+    min-height: 50px;
+    border: 1px solid #991b1b;
+    background: #b91c1c;
+    color: #fff;
+    font-size: 0.86rem;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(153, 27, 27, 0.22);
+  }
+
+  .live-video-controls button.live-video-leave:hover,
+  .live-video-controls button.live-video-leave:active {
+    border-color: #7f1d1d;
+    background: #991b1b;
+    color: #fff;
   }
 
   .live-video-start-panel {
@@ -314,7 +342,7 @@
   }
 
   .live-video-room-heading {
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
   }
 
@@ -328,6 +356,7 @@
   }
 
   .live-video-count {
+    flex: 0 0 auto;
     padding: 6px 8px;
     font-size: 0.68rem;
   }
