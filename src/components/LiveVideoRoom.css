@@ -296,6 +296,14 @@
     border-radius: 14px;
   }
 
+  .live-video-tile video {
+    transform: scale(1.16) translateY(-4%);
+  }
+
+  .live-video-tile.is-local video {
+    transform: scaleX(-1) scale(1.16) translateY(-4%);
+  }
+
   .live-video-controls {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
