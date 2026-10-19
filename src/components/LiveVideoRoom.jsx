@@ -7,6 +7,12 @@ const ICE_SERVERS = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
+const VIDEO_CONSTRAINTS = {
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  frameRate: { ideal: 30 },
+};
+
 function VideoTile({ stream, label, muted = false, local = false }) {
   const videoRef = useRef(null);
 
@@ -80,7 +86,7 @@ export default function LiveVideoRoom({ instagram }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: VIDEO_CONSTRAINTS,
       });
       if (!isMountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
@@ -345,7 +351,7 @@ export default function LiveVideoRoom({ instagram }) {
 
       const cameraStream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: { exact: nextFacingMode } },
+        video: { ...VIDEO_CONSTRAINTS, facingMode: { exact: nextFacingMode } },
       });
       nextVideoTrack = cameraStream.getVideoTracks()[0];
       if (!nextVideoTrack) throw new Error('The selected camera did not provide a video track.');
