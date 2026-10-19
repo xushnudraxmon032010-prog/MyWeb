@@ -7,29 +7,103 @@ const ICE_SERVERS = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
-const VIDEO_CONSTRAINTS = {
-  width: { ideal: 1920 },
-  height: { ideal: 1080 },
-  frameRate: { ideal: 30 },
+const getVideoConstraints = ({ facingMode = 'user', deviceId = null, quality = 'hd' }) => {
+  const isHD = quality === 'hd';
+  const video = {
+    width: isHD ? { ideal: 1280, max: 1920 } : { ideal: 640, max: 854 },
+    height: isHD ? { ideal: 720, max: 1080 } : { ideal: 480, max: 480 },
+    frameRate: { ideal: 30, max: 30 },
+  };
+
+  if (deviceId) {
+    video.deviceId = { ideal: deviceId };
+  } else if (facingMode) {
+    video.facingMode = { ideal: facingMode };
+  }
+
+  return video;
 };
 
-function VideoTile({ stream, label, muted = false, local = false }) {
+async function acquireNewVideoTrack({ facingMode, deviceId, quality }) {
+  const constraints = getVideoConstraints({ facingMode, deviceId, quality });
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: constraints,
+    });
+    return stream.getVideoTracks()[0] || null;
+  } catch (err) {
+    console.warn('Primary camera constraints failed, attempting relaxed fallback:', err);
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: facingMode ? { facingMode: { ideal: facingMode } } : true,
+      });
+      return fallbackStream.getVideoTracks()[0] || null;
+    } catch (fallbackErr) {
+      console.warn('Relaxed camera constraints failed, attempting basic video:', fallbackErr);
+      const basicStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true,
+      });
+      return basicStream.getVideoTracks()[0] || null;
+    }
+  }
+}
+
+function VideoTile({
+  stream,
+  label,
+  muted = false,
+  local = false,
+  isCameraEnabled = true,
+  isMicEnabled = true,
+  isMirrored = false,
+  fitMode = 'cover',
+}) {
   const videoRef = useRef(null);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream || null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream || null;
+    }
   }, [stream]);
 
+  const hasVideoTrack = stream?.getVideoTracks?.()?.some((t) => t.readyState === 'live');
+  const showVideo = Boolean(stream && hasVideoTrack && (!local || isCameraEnabled));
+
   return (
-    <div className={`live-video-tile${local ? ' is-local' : ''}`}>
-      {stream ? (
-        <video ref={videoRef} autoPlay playsInline muted={muted} />
+    <div className={`live-video-tile${local ? ' is-local' : ''} fit-${fitMode}`}>
+      {showVideo ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={muted}
+          className={`live-video-element${isMirrored ? ' is-mirrored' : ''}`}
+        />
       ) : (
-        <div className="live-video-placeholder" aria-hidden="true">
-          {label.replace(/^@/, '').charAt(0).toUpperCase() || '?'}
+        <div className="live-video-placeholder-wrap">
+          <div className="live-video-placeholder" aria-hidden="true">
+            {label.replace(/^@/, '').charAt(0).toUpperCase() || '?'}
+          </div>
+          {local && !isCameraEnabled && (
+            <span className="live-video-state-badge">
+              📷 Kamera o‘chiq
+            </span>
+          )}
         </div>
       )}
-      <span className="live-video-name">{label}{local ? ' (siz)' : ''}</span>
+
+      <div className="live-video-tile-footer">
+        <span className="live-video-name">{label}{local ? ' (siz)' : ''}</span>
+        {local && !isMicEnabled && (
+          <span className="live-video-muted-pill" title="Mikrofon o‘chiq">
+            🔇 O‘chiq
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -40,6 +114,9 @@ function getMediaErrorMessage(error) {
   }
   if (error?.name === 'NotFoundError' || error?.name === 'DevicesNotFoundError') {
     return 'Kamera yoki mikrofon topilmadi. Qurilmalarni tekshirib, qayta urinib ko‘ring.';
+  }
+  if (error?.name === 'OverconstrainedError' || error?.name === 'ConstraintNotSatisfiedError') {
+    return 'Tanlangan kamera sozlamasi qurilmangizda qo‘llab-quvvatlanmadi. Boshqa kamerani tanlab ko‘ring.';
   }
   if (!navigator.mediaDevices?.getUserMedia) {
     return 'Brauzer video qo‘ng‘iroqni qo‘llamaydi. Saytni HTTPS orqali oching yoki zamonaviy brauzerdan foydalaning.';
@@ -59,10 +136,19 @@ export default function LiveVideoRoom({ instagram }) {
   const [error, setError] = useState('');
   const [participants, setParticipants] = useState([]);
   const [remoteStreams, setRemoteStreams] = useState([]);
+
+  // Kamera va mikrofon sozlamalari
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const [facingMode, setFacingMode] = useState('user');
+  const [isMirrored, setIsMirrored] = useState(true);
+  const [fitMode, setFitMode] = useState('cover');
+  const [videoQuality, setVideoQuality] = useState('hd');
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef(new Map());
   const switchingCameraRef = useRef(false);
@@ -75,6 +161,17 @@ export default function LiveVideoRoom({ instagram }) {
     };
   }, []);
 
+  const enumerateCameras = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      setAvailableCameras(videoInputs);
+    } catch (err) {
+      console.warn('Failed to enumerate cameras:', err);
+    }
+  }, []);
+
   const startCall = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setError(getMediaErrorMessage());
@@ -84,21 +181,39 @@ export default function LiveVideoRoom({ instagram }) {
     setError('');
     setIsStarting(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: VIDEO_CONSTRAINTS,
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+          video: getVideoConstraints({ facingMode: 'user', quality: videoQuality }),
+        });
+      } catch (primaryErr) {
+        console.warn('HD camera request failed, falling back to basic front camera:', primaryErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { facingMode: { ideal: 'user' } },
+        });
+      }
+
       if (!isMountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
+
       localStreamRef.current = stream;
       setLocalStream(stream);
       setIsMicEnabled(true);
       setIsCameraEnabled(true);
       setFacingMode('user');
+      setIsMirrored(true);
       setIsInRoom(true);
       setRoomStatus('Xonaga ulanmoqda...');
+
+      void enumerateCameras();
     } catch (mediaError) {
       console.error('Live video media access failed:', mediaError);
       setError(getMediaErrorMessage(mediaError));
@@ -330,7 +445,7 @@ export default function LiveVideoRoom({ instagram }) {
     setIsCameraEnabled(nextEnabled);
   }, [isCameraEnabled]);
 
-  const switchCamera = async () => {
+  const applyCameraSwitch = async ({ newFacingMode, newDeviceId, newQuality }) => {
     if (!localStreamRef.current || switchingCameraRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setError(getMediaErrorMessage());
@@ -340,21 +455,27 @@ export default function LiveVideoRoom({ instagram }) {
     switchingCameraRef.current = true;
     setIsSwitchingCamera(true);
     setError('');
-    const nextFacingMode = facingMode === 'user' ? 'environment' : 'user';
-    let nextVideoTrack;
+
+    const targetFacing = newFacingMode !== undefined ? newFacingMode : facingMode;
+    const targetDeviceId = newDeviceId !== undefined ? newDeviceId : selectedDeviceId;
+    const targetQuality = newQuality !== undefined ? newQuality : videoQuality;
+
+    let nextVideoTrack = null;
     const replacedSenders = [];
     const currentStream = localStreamRef.current;
     const currentVideoTrack = currentStream?.getVideoTracks()[0];
 
     try {
-      if (!currentVideoTrack) throw new Error('The current video track is unavailable.');
-
-      const cameraStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { ...VIDEO_CONSTRAINTS, facingMode: { exact: nextFacingMode } },
+      nextVideoTrack = await acquireNewVideoTrack({
+        facingMode: targetFacing,
+        deviceId: targetDeviceId,
+        quality: targetQuality,
       });
-      nextVideoTrack = cameraStream.getVideoTracks()[0];
-      if (!nextVideoTrack) throw new Error('The selected camera did not provide a video track.');
+
+      if (!nextVideoTrack) {
+        throw new Error('Yangi video oqimi topilmadi.');
+      }
+
       nextVideoTrack.enabled = isCameraEnabled;
 
       for (const connection of peerConnectionsRef.current.values()) {
@@ -364,29 +485,39 @@ export default function LiveVideoRoom({ instagram }) {
         replacedSenders.push(videoSender);
       }
 
-      currentStream.removeTrack(currentVideoTrack);
-      currentVideoTrack.stop();
+      if (currentVideoTrack) {
+        currentStream.removeTrack(currentVideoTrack);
+        currentVideoTrack.stop();
+      }
+
       const updatedStream = new MediaStream([...currentStream.getAudioTracks(), nextVideoTrack]);
       localStreamRef.current = updatedStream;
       setLocalStream(updatedStream);
-      setFacingMode(nextFacingMode);
+
+      if (newFacingMode !== undefined) {
+        setFacingMode(newFacingMode);
+        setIsMirrored(newFacingMode === 'user');
+      }
+      if (newDeviceId !== undefined) setSelectedDeviceId(newDeviceId);
+      if (newQuality !== undefined) setVideoQuality(newQuality);
     } catch (cameraError) {
+      console.error('Camera switch failed:', cameraError);
       if (nextVideoTrack) {
-        await Promise.allSettled(replacedSenders.map((sender) => sender.replaceTrack(currentVideoTrack)));
+        if (currentVideoTrack) {
+          await Promise.allSettled(replacedSenders.map((sender) => sender.replaceTrack(currentVideoTrack)));
+        }
         nextVideoTrack.stop();
       }
-      console.error('Live video camera switch failed:', cameraError);
-      if (cameraError?.name === 'OverconstrainedError' || cameraError?.name === 'NotFoundError') {
-        setError(nextFacingMode === 'environment'
-          ? 'Orqa kamera topilmadi; qurilmangizdagi mavjud kameralarni tekshiring.'
-          : 'Old kamera topilmadi; qurilmangizdagi mavjud kameralarni tekshiring.');
-      } else {
-        setError('Kamera almashtirilmadi. Brauzerda ikkinchi kameraga ruxsat borligini tekshiring.');
-      }
+      setError('Kamerani almashtirib bo‘lmadi. Qurilma ruxsatlarini tekshiring.');
     } finally {
       switchingCameraRef.current = false;
       setIsSwitchingCamera(false);
     }
+  };
+
+  const quickFlipCamera = () => {
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    void applyCameraSwitch({ newFacingMode: nextMode, newDeviceId: null });
   };
 
   const leaveRoom = () => {
@@ -394,19 +525,22 @@ export default function LiveVideoRoom({ instagram }) {
     setParticipants([]);
     setRemoteStreams([]);
     setIsInRoom(false);
+    setIsSettingsOpen(false);
   };
 
   return (
     <section className="live-video-room" aria-label="Live video suhbati">
       <div className="live-video-room-heading">
-        <div>
+        <div className="live-video-heading-text">
           <h3>Live video suhbat</h3>
           <p>{isInRoom ? roomStatus : 'Instagram nomingiz bilan boshqalar bilan yuzma-yuz gaplashing.'}</p>
         </div>
         {isInRoom && (
-          <span className="live-video-count">
-            {participants.length + 1} ishtirokchi
-          </span>
+          <div className="live-video-heading-badges">
+            <span className="live-video-count">
+              {participants.length + 1} ishtirokchi
+            </span>
+          </div>
         )}
       </div>
 
@@ -414,13 +548,23 @@ export default function LiveVideoRoom({ instagram }) {
 
       {isInRoom ? (
         <>
-          <div className="live-video-grid">
-            <VideoTile stream={localStream} label={`@${instagram}`} muted local />
+          <div className={`live-video-grid grid-count-${Math.min(remoteStreams.length + 1, 4)}`}>
+            <VideoTile
+              stream={localStream}
+              label={`@${instagram}`}
+              muted
+              local
+              isCameraEnabled={isCameraEnabled}
+              isMicEnabled={isMicEnabled}
+              isMirrored={isMirrored}
+              fitMode={fitMode}
+            />
             {remoteStreams.map((peer) => (
               <VideoTile
                 key={peer.sessionId}
                 stream={peer.stream}
                 label={`@${peer.instagram}`}
+                fitMode={fitMode}
               />
             ))}
             {participants
@@ -429,37 +573,239 @@ export default function LiveVideoRoom({ instagram }) {
                 <VideoTile
                   key={participant.sessionId}
                   label={`@${participant.instagram || 'foydalanuvchi'}`}
+                  fitMode={fitMode}
                 />
               ))}
             {participants.length === 0 && (
               <div className="live-video-waiting">
                 <span aria-hidden="true">⌛</span>
                 <strong>Suhbatdosh kutilmoqda</strong>
-                <p>Do‘stlaringiz ham “Live chat” tugmasi orqali xonaga qo‘shilsin.</p>
+                <p>Do‘stlaringiz ham “Live chat” orqali xonaga qo‘shilsin.</p>
               </div>
             )}
           </div>
-          <div className="live-video-controls">
-            <button type="button" className={isMicEnabled ? '' : 'is-muted'} onClick={toggleMic}>
-              {isMicEnabled ? '🎙 Mikrofonni o‘chirish' : '🔇 Mikrofonni yoqish'}
+
+          {/* Pastki qulay boshqaruv paneli (mobil va kompyuter uchun qulay) */}
+          <div className="live-video-controls-bar">
+            <button
+              type="button"
+              className={`live-ctrl-btn${isMicEnabled ? '' : ' is-muted'}`}
+              onClick={toggleMic}
+              aria-label={isMicEnabled ? 'Mikrofonni o‘chirish' : 'Mikrofonni yoqish'}
+            >
+              <span className="live-ctrl-icon">{isMicEnabled ? '🎙' : '🔇'}</span>
+              <span className="live-ctrl-label">{isMicEnabled ? 'Mikrofon' : 'O‘chiq'}</span>
             </button>
-            <button type="button" className={isCameraEnabled ? '' : 'is-muted'} onClick={toggleCamera}>
-              {isCameraEnabled ? '📷 Kamerani o‘chirish' : '📷 Kamerani yoqish'}
+
+            <button
+              type="button"
+              className={`live-ctrl-btn${isCameraEnabled ? '' : ' is-muted'}`}
+              onClick={toggleCamera}
+              aria-label={isCameraEnabled ? 'Kamerani o‘chirish' : 'Kamerani yoqish'}
+            >
+              <span className="live-ctrl-icon">{isCameraEnabled ? '📷' : '🚫'}</span>
+              <span className="live-ctrl-label">{isCameraEnabled ? 'Kamera' : 'O‘chiq'}</span>
             </button>
-            <button type="button" onClick={() => void switchCamera()} disabled={isSwitchingCamera}>
-              {isSwitchingCamera ? '🔄 Almashtirilmoqda...' : '🔄 Kamerani almashtirish'}
+
+            <button
+              type="button"
+              className="live-ctrl-btn"
+              onClick={quickFlipCamera}
+              disabled={isSwitchingCamera || !isCameraEnabled}
+              aria-label="Kamerani almashtirish (Oldi / Orqa)"
+            >
+              <span className={`live-ctrl-icon${isSwitchingCamera ? ' is-spinning' : ''}`}>🔄</span>
+              <span className="live-ctrl-label">
+                {isSwitchingCamera ? 'Almash...' : facingMode === 'user' ? 'Oldi' : 'Orqa'}
+              </span>
             </button>
-            <button type="button" className="live-video-leave" onClick={leaveRoom}>
-              Suhbatni tugatish
+
+            <button
+              type="button"
+              className={`live-ctrl-btn${isSettingsOpen ? ' is-active' : ''}`}
+              onClick={() => setIsSettingsOpen((prev) => !prev)}
+              aria-label="Kamera sozlamalari"
+            >
+              <span className="live-ctrl-icon">⚙️</span>
+              <span className="live-ctrl-label">Sozlama</span>
+            </button>
+
+            <button
+              type="button"
+              className="live-ctrl-btn live-ctrl-leave"
+              onClick={leaveRoom}
+              aria-label="Suhbatni tugatish"
+            >
+              <span className="live-ctrl-icon">📞</span>
+              <span className="live-ctrl-label">Chiqish</span>
             </button>
           </div>
+
+          {/* Kamera sozlamalari oynasi (Sheet / Modal) */}
+          {isSettingsOpen && (
+            <div className="live-video-settings-overlay" onClick={() => setIsSettingsOpen(false)}>
+              <div
+                className="live-video-settings-panel"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Kamera sozlamalari"
+              >
+                <div className="live-settings-header">
+                  <div className="live-settings-title-wrap">
+                    <span className="live-settings-icon" aria-hidden="true">⚙️</span>
+                    <h4>Kamera sozlamalari</h4>
+                  </div>
+                  <button
+                    type="button"
+                    className="live-settings-close-btn"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Yopish"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="live-settings-body">
+                  {/* Kamera yo'nalishi */}
+                  <div className="live-settings-group">
+                    <label className="live-settings-label">Kamera yo‘nalishi:</label>
+                    <div className="live-settings-segmented">
+                      <button
+                        type="button"
+                        className={`segmented-opt${facingMode === 'user' ? ' is-selected' : ''}`}
+                        onClick={() => void applyCameraSwitch({ newFacingMode: 'user', newDeviceId: null })}
+                        disabled={isSwitchingCamera}
+                      >
+                        🤳 Old kamera (Selfie)
+                      </button>
+                      <button
+                        type="button"
+                        className={`segmented-opt${facingMode === 'environment' ? ' is-selected' : ''}`}
+                        onClick={() => void applyCameraSwitch({ newFacingMode: 'environment', newDeviceId: null })}
+                        disabled={isSwitchingCamera}
+                      >
+                        📷 Orqa kamera (Asosiy)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Qurilmalar ro'yxati (agar bir nechta bo'lsa) */}
+                  {availableCameras.length > 1 && (
+                    <div className="live-settings-group">
+                      <label className="live-settings-label" htmlFor="camera-device-select">
+                        Aniq kamera qurilmasi:
+                      </label>
+                      <select
+                        id="camera-device-select"
+                        className="live-settings-select"
+                        value={selectedDeviceId || ''}
+                        onChange={(e) => void applyCameraSwitch({ newDeviceId: e.target.value || null })}
+                        disabled={isSwitchingCamera}
+                      >
+                        <option value="">Avtomatik tanlash</option>
+                        {availableCameras.map((cam, idx) => (
+                          <option key={cam.deviceId || idx} value={cam.deviceId}>
+                            {cam.label || `Kamera ${idx + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Kadr rejimi: To'liq qoplash vs Asl o'lcham */}
+                  <div className="live-settings-group">
+                    <label className="live-settings-label">Kadrni ko‘rsatish usuli:</label>
+                    <div className="live-settings-segmented">
+                      <button
+                        type="button"
+                        className={`segmented-opt${fitMode === 'cover' ? ' is-selected' : ''}`}
+                        onClick={() => setFitMode('cover')}
+                      >
+                        📱 Ekranni to‘ldirish
+                      </button>
+                      <button
+                        type="button"
+                        className={`segmented-opt${fitMode === 'contain' ? ' is-selected' : ''}`}
+                        onClick={() => setFitMode('contain')}
+                      >
+                        🔍 To‘liq kadr (kesilmasin)
+                      </button>
+                    </div>
+                    <small className="live-settings-hint">
+                      {fitMode === 'cover'
+                        ? 'Tasvir ekranni to‘ldiradi (telefonlar uchun standart qulay rejim).'
+                        : 'Kadr chetlari kesilmaydi, yuzingiz to‘liq sig‘adi.'}
+                    </small>
+                  </div>
+
+                  {/* Oyna effekti */}
+                  <div className="live-settings-group">
+                    <label className="live-settings-toggle-row">
+                      <div>
+                        <span className="live-settings-label">Oyna effekti (Mirror)</span>
+                        <small className="live-settings-hint">Old kamerada tasvirni o‘ng/chap akslantirish</small>
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="live-settings-checkbox"
+                        checked={isMirrored}
+                        onChange={(e) => setIsMirrored(e.target.checked)}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Video sifati */}
+                  <div className="live-settings-group">
+                    <label className="live-settings-label">Video sifati:</label>
+                    <div className="live-settings-segmented">
+                      <button
+                        type="button"
+                        className={`segmented-opt${videoQuality === 'hd' ? ' is-selected' : ''}`}
+                        onClick={() => void applyCameraSwitch({ newQuality: 'hd' })}
+                        disabled={isSwitchingCamera}
+                      >
+                        ✨ HD (Tiniq tasvir)
+                      </button>
+                      <button
+                        type="button"
+                        className={`segmented-opt${videoQuality === 'sd' ? ' is-selected' : ''}`}
+                        onClick={() => void applyCameraSwitch({ newQuality: 'sd' })}
+                        disabled={isSwitchingCamera}
+                      >
+                        ⚡ Standart (Tejamkor)
+                      </button>
+                    </div>
+                    <small className="live-settings-hint">
+                      Agar internet tezligi past bo‘lsa, Standart rejim qotmaslikka yordam beradi.
+                    </small>
+                  </div>
+                </div>
+
+                <div className="live-settings-footer">
+                  <button
+                    type="button"
+                    className="live-settings-done-btn"
+                    onClick={() => setIsSettingsOpen(false)}
+                  >
+                    Saqlash va yopish
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <div className="live-video-start-panel">
           <div className="live-video-start-icon" aria-hidden="true">🎥</div>
           <strong>Kamerali suhbatga qo‘shiling</strong>
-          <p>Kamera va mikrofon faqat tugmani bosganingizdan keyin yoqiladi.</p>
-          <button type="button" className="live-video-start-button" onClick={() => void startCall()} disabled={isStarting}>
+          <p>Kamera va mikrofon faqat tugmani bosganingizdan keyin ishga tushadi.</p>
+          <button
+            type="button"
+            className="live-video-start-button"
+            onClick={() => void startCall()}
+            disabled={isStarting}
+          >
             {isStarting ? 'Ulanmoqda...' : 'Live chatni boshlash'}
           </button>
         </div>
