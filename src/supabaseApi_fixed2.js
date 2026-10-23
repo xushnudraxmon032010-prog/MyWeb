@@ -89,6 +89,7 @@ export async function getGlobalChatMessages() {
     await supabase
       .from('chat_messages')
       .select('id,sender,instagram,message,created_at')
+      .neq('sender', '__SYSTEM_CONFIG__')
       .order('created_at', { ascending: false })
       .limit(200)
   );
@@ -114,7 +115,8 @@ export function subscribeToGlobalChatMessages(onMessage) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-      () => {
+      (payload) => {
+        if (payload?.new?.sender === '__SYSTEM_CONFIG__') return;
         onMessage?.();
       }
     )
@@ -184,12 +186,25 @@ export async function logoutAdmin() {
 
 export async function getChatPinSettings() {
   try {
-    const row = unwrap(await supabase.from('profile').select('chat_pin, chat_pin_enabled').eq('id', 1).maybeSingle());
-    if (row && row.chat_pin_enabled !== null && row.chat_pin_enabled !== undefined) {
-      return {
-        pin: row.chat_pin || '1234',
-        enabled: Boolean(row.chat_pin_enabled),
-      };
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('message')
+      .eq('sender', '__SYSTEM_CONFIG__')
+      .order('id', { ascending: false })
+      .limit(1);
+
+    if (!error && data && data.length > 0) {
+      try {
+        const parsed = JSON.parse(data[0].message);
+        if (parsed && typeof parsed.pin === 'string') {
+          return {
+            pin: parsed.pin,
+            enabled: parsed.enabled !== false,
+          };
+        }
+      } catch (jsonErr) {
+        console.warn('JSON parse error in system pin config:', jsonErr);
+      }
     }
   } catch (err) {
     console.warn('Supabase getChatPinSettings fallback to local:', err);
@@ -203,21 +218,55 @@ export async function getChatPinSettings() {
 }
 
 export async function updateChatPinSettings({ pin, enabled }) {
-  if (pin !== undefined) localStorage.setItem('myweb-chat-pin', pin);
-  if (enabled !== undefined) localStorage.setItem('myweb-chat-pin-enabled', String(enabled));
+  const current = await getChatPinSettings();
+  const nextPin = pin !== undefined ? pin : current.pin;
+  const nextEnabled = enabled !== undefined ? enabled : current.enabled;
+
+  localStorage.setItem('myweb-chat-pin', nextPin);
+  localStorage.setItem('myweb-chat-pin-enabled', String(nextEnabled));
 
   try {
-    const payload = {};
-    if (pin !== undefined) payload.chat_pin = pin;
-    if (enabled !== undefined) payload.chat_pin_enabled = enabled;
+    const { data, error } = await supabase.from('chat_messages').insert({
+      sender: '__SYSTEM_CONFIG__',
+      instagram: '__system_pin__',
+      message: JSON.stringify({ pin: nextPin, enabled: nextEnabled }),
+    }).select().single();
 
-    const result = await supabase.from('profile').update(payload).eq('id', 1);
-    if (result.error) {
-      console.warn('Supabase updateChatPinSettings warning:', result.error);
+    if (error) {
+      console.warn('Supabase updateChatPinSettings error:', error);
     }
-    return result.data;
+    return data;
   } catch (err) {
     console.warn('Supabase updateChatPinSettings failed:', err);
     return null;
   }
+}
+
+export function subscribeToChatPinSettings(onPinUpdate) {
+  const channel = supabase
+    .channel('global-chat-pin-updates')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+      (payload) => {
+        if (payload?.new?.sender === '__SYSTEM_CONFIG__') {
+          try {
+            const parsed = JSON.parse(payload.new.message);
+            if (parsed && typeof parsed.pin === 'string') {
+              onPinUpdate?.({
+                pin: parsed.pin,
+                enabled: parsed.enabled !== false,
+              });
+            }
+          } catch (e) {
+            console.warn('Failed to parse realtime pin settings:', e);
+          }
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }

@@ -27,6 +27,7 @@ import {
   supabase,
   getChatPinSettings,
   updateChatPinSettings,
+  subscribeToChatPinSettings,
 } from './supabaseApi_fixed2';
 import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
@@ -316,6 +317,20 @@ function App() {
       setChatLoading(false);
     }
   };
+
+  useEffect(() => {
+    const cleanup = subscribeToChatPinSettings((updated) => {
+      if (updated?.pin) {
+        setChatPin(updated.pin);
+        localStorage.setItem('myweb-chat-pin', updated.pin);
+      }
+      if (updated?.enabled !== undefined) {
+        setChatPinEnabled(Boolean(updated.enabled));
+        localStorage.setItem('myweb-chat-pin-enabled', String(Boolean(updated.enabled)));
+      }
+    });
+    return () => cleanup?.();
+  }, []);
 
   useEffect(() => {
     const isEditable = (el) => Boolean(el?.closest?.('input, textarea, [contenteditable="true"]'));
