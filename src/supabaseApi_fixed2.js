@@ -180,3 +180,44 @@ export async function loginAdmin(username, password) {
 export async function logoutAdmin() {
   await supabase.auth.signOut();
 }
+
+
+export async function getChatPinSettings() {
+  try {
+    const row = unwrap(await supabase.from('profile').select('chat_pin, chat_pin_enabled').eq('id', 1).maybeSingle());
+    if (row && row.chat_pin_enabled !== null && row.chat_pin_enabled !== undefined) {
+      return {
+        pin: row.chat_pin || '1234',
+        enabled: Boolean(row.chat_pin_enabled),
+      };
+    }
+  } catch (err) {
+    console.warn('Supabase getChatPinSettings fallback to local:', err);
+  }
+
+  const stored = localStorage.getItem('myweb-chat-pin-enabled');
+  return {
+    pin: localStorage.getItem('myweb-chat-pin') || '1234',
+    enabled: stored === null ? true : stored === 'true',
+  };
+}
+
+export async function updateChatPinSettings({ pin, enabled }) {
+  if (pin !== undefined) localStorage.setItem('myweb-chat-pin', pin);
+  if (enabled !== undefined) localStorage.setItem('myweb-chat-pin-enabled', String(enabled));
+
+  try {
+    const payload = {};
+    if (pin !== undefined) payload.chat_pin = pin;
+    if (enabled !== undefined) payload.chat_pin_enabled = enabled;
+
+    const result = await supabase.from('profile').update(payload).eq('id', 1);
+    if (result.error) {
+      console.warn('Supabase updateChatPinSettings warning:', result.error);
+    }
+    return result.data;
+  } catch (err) {
+    console.warn('Supabase updateChatPinSettings failed:', err);
+    return null;
+  }
+}

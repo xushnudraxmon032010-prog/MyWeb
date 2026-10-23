@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+
 export default function AdminPage({
   visitorStats,
   addFriend,
@@ -30,7 +32,39 @@ export default function AdminPage({
   setRole,
   setIsAdminLoggedIn,
   setShowLogin,
+  chatPin = '1234',
+  chatPinEnabled = false,
+  onUpdateChatPin,
 }) {
+  const [pinInput, setPinInput] = useState(chatPin || '1234');
+  const [showPinText, setShowPinText] = useState(false);
+  const [pinFeedback, setPinFeedback] = useState(null);
+
+  useEffect(() => {
+    setPinInput(chatPin || '1234');
+  }, [chatPin]);
+
+  const handleSavePin = (e) => {
+    e.preventDefault();
+    if (!/^\d{4}$/.test(pinInput)) {
+      setPinFeedback({ type: 'error', text: 'Parol aniq 4 ta raqamdan iborat bo‘lishi kerak!' });
+      return;
+    }
+    onUpdateChatPin?.({ pin: pinInput });
+    setPinFeedback({ type: 'success', text: `Yangi parol (${pinInput}) muvaffaqiyatli saqlandi!` });
+    setTimeout(() => setPinFeedback(null), 4000);
+  };
+
+  const handleTogglePin = (enabled) => {
+    onUpdateChatPin?.({ enabled });
+    if (enabled) {
+      setPinFeedback({ type: 'success', text: 'Chatga 4 xonali parol yoqildi!' });
+    } else {
+      setPinFeedback({ type: 'info', text: 'Parol olib tashlandi! Barcha foydalanuvchilar parolsiz kira oladi.' });
+    }
+    setTimeout(() => setPinFeedback(null), 4000);
+  };
+
   return (
     <main className="admin-panel">
       <section className="admin-header">
@@ -62,6 +96,94 @@ export default function AdminPage({
           >
             Chiqish
           </button>
+        </div>
+      </section>
+
+      {/* CHAT XAVFSIZLIGI VA 4 XONALI PAROL SOZLAMASI */}
+      <section className="admin-card chat-security-card">
+        <div className="analytics-heading">
+          <div>
+            <p className="section-label">CHAT XAVFSIZLIGI</p>
+            <h3>Chatga kirish paroli (4 ta son)</h3>
+          </div>
+          <span className={`status-pill ${chatPinEnabled ? 'status-pill-active' : 'status-pill-inactive'}`}>
+            {chatPinEnabled ? '🔒 Parol yoqilgan' : '🔓 Parol olib tashlangan'}
+          </span>
+        </div>
+
+        <div className="chat-pin-box">
+          <div className="chat-pin-info-row">
+            <div>
+              <strong>Holat: {chatPinEnabled ? 'Parol faol' : 'Parol o‘chirilgan'}</strong>
+              <p>
+                {chatPinEnabled
+                  ? 'Foydalanuvchilar chat tugmasini bosganda 4 xonali parolni kiritishi shart.'
+                  : 'Parol butunlay olib tashlangan. Har qanday mehmon to‘g‘ridan-to‘g‘ri chatga kira oladi.'}
+              </p>
+            </div>
+            <div className="chat-pin-toggle-btn-wrap">
+              {chatPinEnabled ? (
+                <button
+                  type="button"
+                  className="role-toggle danger-outline-btn"
+                  onClick={() => handleTogglePin(false)}
+                >
+                  🚫 Parolni butunlay olib tashlash
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="role-toggle success-outline-btn"
+                  onClick={() => handleTogglePin(true)}
+                >
+                  🔒 Parolni yoqish
+                </button>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={handleSavePin} className="chat-pin-edit-form">
+            <label className="chat-pin-input-label">
+              <span>Amaldagi 4 xonali parol:</span>
+              <div className="chat-pin-input-wrap">
+                <input
+                  type={showPinText ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="\d{4}"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setPinInput(cleaned);
+                  }}
+                  placeholder="1234"
+                  className="chat-pin-input-field"
+                />
+                <button
+                  type="button"
+                  className="pin-toggle-eye"
+                  onClick={() => setShowPinText((prev) => !prev)}
+                  title={showPinText ? 'Yashirish' : 'Ko‘rsatish'}
+                >
+                  {showPinText ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </label>
+
+            <button
+              type="submit"
+              className="primary-btn chat-pin-save-btn"
+              disabled={pinInput.length !== 4 || pinInput === chatPin}
+            >
+              Parolni o‘zgartirish
+            </button>
+          </form>
+
+          {pinFeedback && (
+            <div className={`chat-pin-feedback ${pinFeedback.type}`}>
+              {pinFeedback.text}
+            </div>
+          )}
         </div>
       </section>
 

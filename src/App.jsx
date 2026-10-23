@@ -25,6 +25,8 @@ import {
   logoutAdmin,
   parseAcquaintance,
   supabase,
+  getChatPinSettings,
+  updateChatPinSettings,
 } from './supabaseApi_fixed2';
 import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
@@ -263,6 +265,16 @@ function App() {
     }
   });
   const [isMyRequestApproved, setIsMyRequestApproved] = useState(false);
+  const [chatPin, setChatPin] = useState(() => localStorage.getItem('myweb-chat-pin') || '1234');
+  const [chatPinEnabled, setChatPinEnabled] = useState(() => {
+    const stored = localStorage.getItem('myweb-chat-pin-enabled');
+    return stored === null ? true : stored === 'true';
+  });
+  const [isChatUnlocked, setIsChatUnlocked] = useState(() => sessionStorage.getItem('myweb-chat-unlocked') === 'true');
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const pinInputRef = useRef(null);
   const knownPendingIdsRef = useRef(new Set());
 
   const pendingAcquaintances = acquaintances.filter((item) => item.status === 'pending');
@@ -304,6 +316,47 @@ function App() {
       setChatLoading(false);
     }
   };
+
+  useEffect(() => {
+    const isEditable = (el) => Boolean(el?.closest?.('input, textarea, [contenteditable="true"]'));
+
+    const handleCopy = (e) => {
+      if (!isEditable(e.target)) {
+        e.preventDefault();
+      }
+    };
+
+    const handleCut = (e) => {
+      if (!isEditable(e.target)) {
+        e.preventDefault();
+      }
+    };
+
+    const handleSelectStart = (e) => {
+      if (!isEditable(e.target)) {
+        e.preventDefault();
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if (isEditable(e.target)) return;
+      if ((e.ctrlKey || e.metaKey) && ['c', 'C', 'a', 'A', 'x', 'X', 'u', 'U'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('cut', handleCut);
+    document.addEventListener('selectstart', handleSelectStart);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('cut', handleCut);
+      document.removeEventListener('selectstart', handleSelectStart);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     if (!showSmsModal) return undefined;
@@ -365,7 +418,28 @@ function App() {
     globalChatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [globalChatMessages, chatTypingUsers]);
 
-  const openChatModal = () => {
+  const handleUpdateChatPin = async ({ pin, enabled }) => {
+    const nextPin = pin !== undefined ? pin : chatPin;
+    const nextEnabled = enabled !== undefined ? enabled : chatPinEnabled;
+
+    setChatPin(nextPin);
+    setChatPinEnabled(nextEnabled);
+    localStorage.setItem('myweb-chat-pin', nextPin);
+    localStorage.setItem('myweb-chat-pin-enabled', String(nextEnabled));
+
+    if (nextEnabled === false) {
+      setIsChatUnlocked(true);
+      sessionStorage.setItem('myweb-chat-unlocked', 'true');
+    }
+
+    try {
+      await updateChatPinSettings({ pin: nextPin, enabled: nextEnabled });
+    } catch (err) {
+      console.warn('Chat PIN sync error:', err);
+    }
+  };
+
+  const proceedToChat = () => {
     setIsVideoChatOpen(false);
     const savedInstagram = localStorage.getItem('myweb-chat-instagram') || localStorage.getItem('myweb-user-instagram');
 
@@ -376,6 +450,31 @@ function App() {
     }
 
     setShowChatJoin(true);
+  };
+
+  const openChatModal = () => {
+    // If PIN is enabled, always require 4-digit PIN to enter chat
+    if (chatPinEnabled) {
+      setEnteredPin('');
+      setPinError('');
+      setShowPinModal(true);
+      setTimeout(() => pinInputRef.current?.focus(), 60);
+      return;
+    }
+
+    proceedToChat();
+  };
+
+  const handlePinSubmit = (event) => {
+    event?.preventDefault();
+    if (enteredPin === chatPin) {
+      setShowPinModal(false);
+      proceedToChat();
+    } else {
+      setPinError('Noto‘g‘ri parol! Qayta urinib ko‘ring.');
+      setEnteredPin('');
+      pinInputRef.current?.focus();
+    }
   };
 
   const handleChatJoinSubmit = (event) => {
@@ -440,14 +539,25 @@ function App() {
 
   const loadAppData = async () => {
     try {
-      const [profileData, friendsData, pendingData, approvedData, reviewsData, visitorStatsData] = await Promise.all([
+      const [profileData, friendsData, pendingData, approvedData, reviewsData, visitorStatsData, chatPinData] = await Promise.all([
         getProfile(),
         getFriends(),
         getPendingAcquaintances(),
         getApprovedAcquaintances(),
         getReviews(),
         isAdminLoggedIn ? getMonthlyVisitorStats() : Promise.resolve([]),
+        getChatPinSettings(),
       ]);
+
+      if (chatPinData) {
+        if (chatPinData.pin) {
+          setChatPin(chatPinData.pin);
+          localStorage.setItem('myweb-chat-pin', chatPinData.pin);
+        }
+        const isEnabled = chatPinData.enabled !== false;
+        setChatPinEnabled(isEnabled);
+        localStorage.setItem('myweb-chat-pin-enabled', String(isEnabled));
+      }
 
       const allAcquaintances = [...(Array.isArray(pendingData) ? pendingData : []), ...(Array.isArray(approvedData) ? approvedData : [])];
 
@@ -1072,6 +1182,9 @@ function App() {
           setRole={setRole}
           setIsAdminLoggedIn={setIsAdminLoggedIn}
           setShowLogin={setShowLogin}
+          chatPin={chatPin}
+          chatPinEnabled={chatPinEnabled}
+          onUpdateChatPin={handleUpdateChatPin}
         />
       )}
 
@@ -1262,6 +1375,83 @@ function App() {
             </button>
           </div>
         </aside>
+      )}
+
+      {showPinModal && (
+        <div className="login-backdrop" onClick={() => setShowPinModal(false)}>
+          <div className="login-card pin-card" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="close-btn"
+              onClick={() => setShowPinModal(false)}
+              aria-label="Yopish"
+            >
+              ×
+            </button>
+            <div className="login-card-header">
+              <div className="pin-card-icon" aria-hidden="true">🔒</div>
+              <h2>Chatga kirish</h2>
+              <p className="chat-join-description">Chatdan foydalanish uchun 4 xonali parolni kiriting</p>
+            </div>
+
+            <form onSubmit={handlePinSubmit} className="pin-form">
+              <div className="pin-input-container">
+                <div className="pin-boxes" aria-hidden="true">
+                  {[0, 1, 2, 3].map((idx) => {
+                    const digit = enteredPin[idx];
+                    const isFilled = digit !== undefined;
+                    const isActive = enteredPin.length === idx;
+                    return (
+                      <div
+                        key={idx}
+                        className={`pin-box ${isFilled ? 'is-filled' : ''} ${isActive ? 'is-active' : ''}`}
+                      >
+                        {isFilled ? '●' : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <input
+                  ref={pinInputRef}
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  value={enteredPin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setEnteredPin(val);
+                    setPinError('');
+                    if (val.length === 4) {
+                      if (val === chatPin) {
+                        setShowPinModal(false);
+                        proceedToChat();
+                      } else {
+                        setPinError('Noto‘g‘ri parol! Qayta urinib ko‘ring.');
+                        setEnteredPin('');
+                      }
+                    }
+                  }}
+                  className="pin-overlay-input"
+                  autoFocus
+                  autoComplete="one-time-code"
+                  required
+                />
+              </div>
+
+              {pinError && <p className="login-error pin-error-msg">{pinError}</p>}
+
+              <button
+                type="submit"
+                className="primary-btn wide-btn pin-submit-btn"
+                disabled={enteredPin.length !== 4}
+              >
+                Kirish
+              </button>
+            </form>
+          </div>
+        </div>
       )}
 
       {showChatJoin && (

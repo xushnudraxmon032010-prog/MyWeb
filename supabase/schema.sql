@@ -136,3 +136,18 @@ $$;
 
 revoke all on function public.get_monthly_visitor_stats() from public;
 grant execute on function public.get_monthly_visitor_stats() to authenticated;
+
+
+alter table public.profile add column if not exists chat_pin text default '1234';
+alter table public.profile add column if not exists chat_pin_enabled boolean default false;
+drop policy if exists "Authenticated can update profile" on public.profile;
+create policy "Authenticated can update profile" on public.profile for update to authenticated using (true) with check (true);
+grant update on table public.profile to authenticated;
+
+
+alter table public.profile add column if not exists chat_pin text default '1234';
+alter table public.profile add column if not exists chat_pin_enabled boolean default false;
+drop policy if exists "Authenticated can update profile" on public.profile;
+create policy "Authenticated can update profile" on public.profile for update to authenticated using (true) with check (true);
+grant update on table public.profile to authenticated;
+grant execute on function public.get_monthly_visitor_stats() to authenticated;

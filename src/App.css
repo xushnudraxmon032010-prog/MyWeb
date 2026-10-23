@@ -15,8 +15,40 @@
   --danger: #b42318;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+::selection {
+  background: transparent;
+  color: inherit;
+}
+
+::-moz-selection {
+  background: transparent;
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+input::selection,
+textarea::selection {
+  background: rgba(6, 67, 50, 0.25);
+  color: inherit;
 }
 
 html {
@@ -3133,4 +3165,294 @@ request-helper-text{
   .chat-identity-chip {
     max-width: 75px;
   }
+}
+
+
+/* ================= CHAT PIN & SECURITY ================= */
+.pin-card {
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+  padding: 32px 24px 28px;
+}
+
+.pin-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #0b7655, #064332);
+  color: #fff;
+  font-size: 1.8rem;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 20px rgba(6, 67, 50, 0.2);
+}
+
+.pin-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+  position: relative;
+}
+
+.pin-boxes {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.pin-box {
+  width: 52px;
+  height: 58px;
+  border: 2px solid #d8e4dc;
+  border-radius: 14px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  color: var(--forest);
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.pin-box.is-active {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 4px rgba(6, 67, 50, 0.12);
+  transform: translateY(-2px);
+}
+
+.pin-box.is-filled {
+  border-color: #0b7655;
+  background: #f4f9f6;
+  font-weight: bold;
+}
+
+.pin-hidden-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.pin-error-msg {
+  margin: 4px 0 14px;
+  animation: shake 0.35s ease-in-out;
+}
+
+.pin-submit-btn {
+  margin-top: 8px;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* ================= ADMIN CHAT SECURITY CARD ================= */
+.chat-security-card {
+  margin-bottom: 24px;
+  border-left: 4px solid var(--forest);
+}
+
+.status-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.status-pill-active {
+  background: #e6f6ee;
+  color: #0b7655;
+  border: 1px solid #b7e4ce;
+}
+
+.status-pill-inactive {
+  background: #fff4e5;
+  color: #b45309;
+  border: 1px solid #fde2b7;
+}
+
+.chat-pin-box {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.chat-pin-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: #f8faf8;
+  border: 1px solid #e7ede8;
+}
+
+.chat-pin-info-row strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--forest-dark);
+  margin-bottom: 4px;
+}
+
+.chat-pin-info-row p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+  max-width: 520px;
+  line-height: 1.45;
+}
+
+.chat-pin-toggle-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.danger-outline-btn {
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+  background: #fef2f2 !important;
+}
+
+.danger-outline-btn:hover {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
+}
+
+.success-outline-btn {
+  border-color: #86efac !important;
+  color: #15803d !important;
+  background: #f0fdf4 !important;
+}
+
+.success-outline-btn:hover {
+  background: #dcfce7 !important;
+  border-color: #22c55e !important;
+}
+
+.chat-pin-edit-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e2ece5;
+}
+
+.chat-pin-input-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--forest-dark);
+}
+
+.chat-pin-input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 170px;
+}
+
+.chat-pin-input-field {
+  width: 100%;
+  height: 44px;
+  padding: 8px 40px 8px 14px;
+  border: 2px solid #d2ded5;
+  border-radius: 12px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  color: var(--forest-dark);
+  outline: none;
+  transition: all 0.18s ease;
+}
+
+.chat-pin-input-field:focus {
+  border-color: var(--forest);
+  box-shadow: 0 0 0 3px rgba(6, 67, 50, 0.12);
+}
+
+.pin-toggle-eye {
+  position: absolute;
+  right: 8px;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.chat-pin-save-btn {
+  height: 44px;
+  padding: 0 20px;
+  align-self: flex-end;
+}
+
+.chat-pin-feedback {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.chat-pin-feedback.success {
+  background: #e6f6ee;
+  color: #0b7655;
+  border: 1px solid #a3dfc0;
+}
+
+.chat-pin-feedback.error {
+  background: #fff0ed;
+  color: #a1281c;
+  border: 1px solid #f2c8c1;
+}
+
+.chat-pin-feedback.info {
+  background: #eef5fc;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+
+.pin-input-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 14px 0 10px;
+}
+
+.pin-overlay-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 5;
+  font-size: 24px;
 }
