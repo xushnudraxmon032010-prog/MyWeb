@@ -847,15 +847,35 @@ textarea {
 }
 
 .footer-contact {
-  padding: 80px 28px 100px;
+  position: relative;
+  overflow: hidden;
+  margin: 32px auto 48px;
+  padding: clamp(32px, 5vw, 56px);
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(247, 182, 37, 0.2), transparent 32%),
+    linear-gradient(135deg, #0b3d30, #062b22);
+  box-shadow: 0 20px 50px rgba(6, 43, 34, 0.16);
+  color: #fff;
 }
 
 .footer-contact > div {
   min-width: 0;
+}
+
+.footer-contact-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+}
+
+.footer-contact .section-label {
+  color: #f7c65b;
 }
 
 .footer-contact h2 {
@@ -864,25 +884,54 @@ textarea {
   letter-spacing: -0.06em;
 }
 
+.footer-contact-description {
+  max-width: 440px;
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.96rem;
+  line-height: 1.6;
+}
+
 .social-links {
+  position: relative;
+  z-index: 1;
   display: flex;
-  gap: 18px;
+  justify-content: flex-end;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .social-links a {
-  color: var(--forest);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
   text-decoration: none;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
-  padding: 10px 14px;
-  min-height: 44px;
+  padding: 11px 16px;
+  min-height: 46px;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 650;
+  transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.social-links a:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .social-links .telegram-link {
   background: #168acd;
   border-color: #168acd;
   color: white;
+}
+
+.social-links .telegram-link:hover {
+  border-color: #32a5e8;
+  background: #32a5e8;
 }
 
 .admin-panel {

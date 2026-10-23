@@ -910,14 +910,6 @@ function App() {
         return (
           <ContactPage
             profile={profile}
-            acquaintanceForm={acquaintanceForm}
-            setAcquaintanceForm={setAcquaintanceForm}
-            addAcquaintance={addAcquaintance}
-            acquaintanceError={acquaintanceError}
-            isMyRequestApproved={isMyRequestApproved}
-            mySentRequest={mySentRequest}
-            reviewForm={reviewForm}
-            setReviewForm={setReviewForm}
             setShowAlert={setShowAlert}
           />
         );

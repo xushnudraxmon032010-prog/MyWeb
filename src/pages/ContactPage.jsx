@@ -1,51 +1,27 @@
 export default function ContactPage({
   profile,
-  acquaintanceForm,
-  setAcquaintanceForm,
-  addAcquaintance,
-  acquaintanceError,
-  isMyRequestApproved,
-  mySentRequest,
-  reviewForm,
-  setReviewForm,
   setShowAlert,
 }) {
   return (
     <>
       <section id="contact" className="footer-contact">
-        <div>
+        <div className="footer-contact-copy">
           <p className="section-label">05 / BOG’LANISH</p>
           <h2>Men bilan bog’laning</h2>
+          <p className="footer-contact-description">
+            Savolingiz yoki taklifingiz bormi? O‘zingizga qulay tarmoq orqali yozing.
+          </p>
         </div>
 
-        <div className="social-links">
+        <div className="social-links" aria-label="Ijtimoiy tarmoqlar">
           <a className="telegram-link" href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
-            Telegram
+            Telegram <span aria-hidden="true">↗</span>
           </a>
           <a href={profile.socialLinks.instagram} target="_blank" rel="noreferrer">
-            Instagram
+            Instagram <span aria-hidden="true">↗</span>
           </a>
           <a href={profile.socialLinks.youtube} target="_blank" rel="noreferrer">
-            YouTube
-          </a>
-        </div>
-      </section>
-
-      <section id="contact" className="footer-contact">
-        <div>
-          <p className="section-label">05 / BOG’LANISH</p>
-          <h2>Men bilan bog’laning</h2>
-        </div>
-
-        <div className="social-links">
-          <a className="telegram-link" href={profile.socialLinks.telegram} target="_blank" rel="noreferrer">
-            Telegram
-          </a>
-          <a href={profile.socialLinks.instagram} target="_blank" rel="noreferrer">
-            Instagram
-          </a>
-          <a href={profile.socialLinks.youtube} target="_blank" rel="noreferrer">
-            YouTube
+            YouTube <span aria-hidden="true">↗</span>
           </a>
         </div>
       </section>
